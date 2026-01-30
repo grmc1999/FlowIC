@@ -189,7 +189,7 @@ if __name__ == "__main__":
     parser.add_argument('--dt_physics', type=float, required=True)
     parser.add_argument('--steps_physics', type=int, default=500)
     parser.add_argument('--N', type=int, default='outputs')
-    parser.add_argument('-epochs', type=int, default='outputs')
+    parser.add_argument('--epochs', type=int, default='outputs')
     parser.add_argument('--L', type=float, default=0)
     
     args = parser.parse_args()
