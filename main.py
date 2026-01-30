@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from typing import Union
 from dataclasses import dataclass
 from jax.tree_util import register_dataclass
+from functools import partial
 # ==========================================
 # 1. Configuración del Dominio 1D
 # ==========================================
@@ -42,7 +43,7 @@ class domain1D:
 # ==========================================
 # 2. Física Diferenciable (Estable)
 # ==========================================
-@jit
+@partial(jit, static_argnums=(2,))
 def solve_heat_equation(ic, domain, alpha):
     """
     Resuelve la ecuación del calor en 1D.
@@ -151,7 +152,8 @@ def generate_ic(params, model, rng_key, domain):
 #optimizer = optax.adam(learning_rate=0.001)
 #opt_state = optimizer.init(params)
 
-@jit
+
+@partial(jit, static_argnums=(3,4))
 def loss_fn(params, key,domain,alpha,n_samples):
     # 1. Flow: Generar IC candidata
     key, *keys = random.split(key,num=n_samples)
@@ -168,7 +170,7 @@ def loss_fn(params, key,domain,alpha,n_samples):
     loss = jnp.mean(jax.numpy.absolute(pred_final - gt_final))
     return loss, (pred_ic, pred_final)
 
-@jit
+@partial(jit, static_argnums=(4,5))
 def train_step(params, opt_state, key, domain, alpha, n_samples):
     (loss, aux), grads = value_and_grad(loss_fn, has_aux=True)(params, key,  domain, alpha, n_samples)
     updates, opt_state = optimizer.update(grads, opt_state)
