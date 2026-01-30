@@ -189,6 +189,7 @@ if __name__ == "__main__":
     parser.add_argument('--dt_physics', type=float, required=True)
     parser.add_argument('--steps_physics', type=int, default=500)
     parser.add_argument('--N', type=int, default='outputs')
+    parser.add_argument('-epochs', type=int, default='outputs')
     parser.add_argument('--L', type=float, default=0)
     
     args = parser.parse_args()
@@ -221,8 +222,8 @@ if __name__ == "__main__":
     print("\nComenzando entrenamiento...")
 
     
-    epochs = 5000
-    for i in range(epochs):
+    #epochs = 5000
+    for i in range(args.epochs):
         key, subkey = random.split(key)
         params, opt_state, loss, (curr_ic, curr_final) = train_step(params, opt_state, subkey, domain, alpha, args.n_samples)
         loss_history.append(loss)
