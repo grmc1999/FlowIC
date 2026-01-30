@@ -211,7 +211,7 @@ if __name__ == "__main__":
 
     model = SimpleVectorField()
     key = random.PRNGKey(0)
-    params = model.init(key, jnp.zeros(domain.N), 0.0, domain.N)
+    params = model.init(key, jnp.zeros(domain.N), 0.0)
     optimizer = optax.adam(learning_rate=args.lr)
     opt_state = optimizer.init(params)
 
