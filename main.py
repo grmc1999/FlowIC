@@ -23,7 +23,7 @@ from functools import partial
 #                    jnp.diag(off_diag, k=-1)) / (dx**2)
 
 #@jax.tree_util.register_dataclass
-@partial(register_dataclass, meta_fields=['N', 'L','dt_physics','steps_physics'])
+@partial(register_dataclass, meta_fields = None, data_fields=['N', 'L','dt_physics','steps_physics'])
 @dataclass
 class domain1D:
     N: int = 64
