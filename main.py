@@ -90,7 +90,7 @@ class SimpleVectorField(nn.Module):
     y predice la velocidad de cambio para la EDO generativa.
     """
     @nn.compact
-    def __call__(self, x, t, N):
+    def __call__(self, x, t):
         # x shape: (N,)
         # t shape: escalar
 
@@ -106,7 +106,7 @@ class SimpleVectorField(nn.Module):
         #h = nn.BatchNorm(128)(h)
         h = nn.gelu(h)
         # Salida del mismo tamaño que la entrada física (N)
-        out = nn.Dense(N)(h)
+        out = nn.Dense(64)(h)
         return out
 
 # ==========================================
