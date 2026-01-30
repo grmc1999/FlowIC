@@ -202,7 +202,7 @@ if __name__ == "__main__":
     gt_ic = jnp.exp(-100 * (x_grid - 0.3)**2) + 0.5 * jnp.exp(-100 * (x_grid - 0.7)**2)
 
     # Simulamos para obtener lo que "vemos" en la realidad (Target)
-    gt_final = solve_heat_equation(gt_ic,domain)
+    gt_final = solve_heat_equation(gt_ic,domain,alpha)
 
     print("Objetivo: Encontrar la curva inicial que generó el estado final observado.")
 
