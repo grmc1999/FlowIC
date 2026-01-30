@@ -5,36 +5,66 @@ import flax.linen as nn
 import optax
 import diffrax
 import matplotlib.pyplot as plt
+from typing import Union
+from dataclasses import dataclass
 
 # ==========================================
 # 1. Configuración del Dominio 1D
 # ==========================================
-N = 64            # Puntos en la línea
-L = 1.0           # Longitud
-dx = L / (N - 1)
-alpha = 0.05      # Coeficiente de difusión
-dt_physics = 0.001
-steps_physics = 200 # Pasos de simulación física
+
 
 # Matriz del Laplaciano 1D (Diferencias Finitas) pre-calculada
 # Esto hace la física extremadamente rápida y estable
-diag = -2.0 * jnp.ones(N)
-off_diag = jnp.ones(N - 1)
-laplacian_matrix = (jnp.diag(diag) +
-                    jnp.diag(off_diag, k=1) +
-                    jnp.diag(off_diag, k=-1)) / (dx**2)
+#diag = -2.0 * jnp.ones(N)
+#off_diag = jnp.ones(N - 1)
+#laplacian_matrix = (jnp.diag(diag) +
+#                    jnp.diag(off_diag, k=1) +
+#                    jnp.diag(off_diag, k=-1)) / (dx**2)
+
+@dataclass
+class domain1D:
+    N: int = 64
+    L: float = 1.0
+    dt_physics: float = 0.001
+    steps_physics: int = 200
+    def __post_init__(self):
+        self.dx = self.L/(self.N-1)
+
+#@dataclass
+#class domainmaps:
+#    a: Union[callable,float]
+#    def __post_init__(self):
+#        if isinstance(a,callable):
+#            a = a(x_grid)
+
 
 # ==========================================
 # 2. Física Diferenciable (Estable)
 # ==========================================
 @jit
-def solve_heat_equation(ic):
+def solve_heat_equation(ic, domain, alpha):
     """
     Resuelve la ecuación del calor en 1D.
     Entrada: ic (Condición Inicial) vector de tamaño (N,)
     Salida: estado final tras 'steps_physics'
     """
     # Función de un paso de tiempo (Euler Explícito Vectorizado)
+
+    #N = 64            # Puntos en la línea
+    N = domain.N
+    #L = 1.0           # Longitud
+    L = domain.L
+    #dx = L / (N - 1)
+    dx = domain.dx
+    #alpha = 0.05      # Coeficiente de difusión
+    dt_physics = 0.001
+    steps_physics = 200 # Pasos de simulación física
+
+    diag = -2.0 * jnp.ones(N)
+    off_diag = jnp.ones(N - 1)
+    laplacian_matrix = (jnp.diag(diag) +
+                        jnp.diag(off_diag, k=1) +
+                        jnp.diag(off_diag, k=-1)) / (dx**2)
     def step_fn(u, _):
         # u_new = u + dt * alpha * (Laplacian @ u)
         dudt = alpha * jnp.dot(laplacian_matrix, u)
@@ -57,7 +87,7 @@ class SimpleVectorField(nn.Module):
     y predice la velocidad de cambio para la EDO generativa.
     """
     @nn.compact
-    def __call__(self, x, t):
+    def __call__(self, x, t, N):
         # x shape: (N,)
         # t shape: escalar
 
@@ -79,9 +109,9 @@ class SimpleVectorField(nn.Module):
 # ==========================================
 # 4. Generador (Integrador ODE)
 # ==========================================
-def generate_ic(params, model, rng_key):
+def generate_ic(params, model, rng_key, domain):
     """Transfoma Ruido -> Condición Inicial Candidata"""
-    z0 = random.normal(rng_key, (N,)) * 0.5 # Ruido inicial
+    z0 = random.normal(rng_key, (domain.N,)) * 0.5 # Ruido inicial
 
     def ode_func(t, y, args):
         return model.apply(params, y, t)
@@ -103,86 +133,128 @@ def generate_ic(params, model, rng_key):
 # 5. Preparar el "Ground Truth" (El Objetivo)
 # ==========================================
 # Creamos una condición inicial real (Doble pico gaussiano)
-x_grid = jnp.linspace(0, L, N)
-gt_ic = jnp.exp(-100 * (x_grid - 0.3)**2) + 0.5 * jnp.exp(-100 * (x_grid - 0.7)**2)
-
-# Simulamos para obtener lo que "vemos" en la realidad (Target)
-gt_final = solve_heat_equation(gt_ic)
-
-print("Objetivo: Encontrar la curva inicial que generó el estado final observado.")
+#x_grid = jnp.linspace(0, L, N)
+#gt_ic = jnp.exp(-100 * (x_grid - 0.3)**2) + 0.5 * jnp.exp(-100 * (x_grid - 0.7)**2)
+#
+## Simulamos para obtener lo que "vemos" en la realidad (Target)
+#gt_final = solve_heat_equation(gt_ic)
+#
+#print("Objetivo: Encontrar la curva inicial que generó el estado final observado.")
 
 # ==========================================
 # 6. Entrenamiento (Inverse Physics Design)
 # ==========================================
-model = SimpleVectorField()
-key = random.PRNGKey(0)
-params = model.init(key, jnp.zeros(N), 0.0)
-optimizer = optax.adam(learning_rate=0.001)
-opt_state = optimizer.init(params)
+#model = SimpleVectorField()
+#key = random.PRNGKey(0)
+#params = model.init(key, jnp.zeros(N), 0.0)
+#optimizer = optax.adam(learning_rate=0.001)
+#opt_state = optimizer.init(params)
 
 @jit
-def loss_fn(params, key):
+def loss_fn(params, key,domain,alpha,n_samples):
     # 1. Flow: Generar IC candidata
-    key, *keys = random.split(key,num=100)
+    key, *keys = random.split(key,num=n_samples)
     #pred_ic = generate_ic(params, model, key)
 #
     ## 2. Física: Simular futuro
     #pred_final = solve_heat_equation(pred_ic)
-    pred_ic,pred_final = jax.vmap(lambda key: (generate_ic(params,model,key),solve_heat_equation(generate_ic(params,model,key))),0)(jnp.array(keys))
+    pred_ic,pred_final = jax.vmap(lambda key: (
+        generate_ic(params,model,key,domain),
+        solve_heat_equation(generate_ic(params,model,key,domain),domain,alpha)
+        ),0)(jnp.array(keys))
 
     # 3. Error: Comparar con el estado final real
     loss = jnp.mean(jax.numpy.absolute(pred_final - gt_final))
     return loss, (pred_ic, pred_final)
 
 @jit
-def train_step(params, opt_state, key):
-    (loss, aux), grads = value_and_grad(loss_fn, has_aux=True)(params, key)
+def train_step(params, opt_state, key, domain, alpha, n_samples):
+    (loss, aux), grads = value_and_grad(loss_fn, has_aux=True)(params, key,  domain, alpha, n_samples)
     updates, opt_state = optimizer.update(grads, opt_state)
     params = optax.apply_updates(params, updates)
     return params, opt_state, loss, aux
 
-# Bucle de entrenamiento
-loss_history = []
-print("\nComenzando entrenamiento...")
 
-epochs = 5000
-for i in range(epochs):
-    key, subkey = random.split(key)
-    params, opt_state, loss, (curr_ic, curr_final) = train_step(params, opt_state, subkey)
-    loss_history.append(loss)
+if __name__ == "__main__":
 
-    if i % 100 == 0:
-        print(f"Iteración {i}: Loss = {loss:.6f}")
+    import argparse
 
-# ==========================================
-# 7. Visualización
-# ==========================================
-plt.figure(figsize=(15, 5))
+    parser = argparse.ArgumentParser(description='Exps')
+    parser.add_argument('--n_samples', type=int, required=True)
+    parser.add_argument('--lr', type=float, required=True)
+    parser.add_argument('--dt_physics', type=float, required=True)
+    parser.add_argument('--steps_physics', type=int, default=500)
+    parser.add_argument('--N', type=int, default='outputs')
+    parser.add_argument('--L', type=float, default=0)
+    
+    args = parser.parse_args()
 
-# Gráfica 1: Condiciones Iniciales (Lo que el modelo imagina vs Realidad)
-plt.subplot(1, 3, 1)
-plt.plot(x_grid, gt_ic, 'k--', label='Real IC (Secreta)', linewidth=2)
-plt.plot(x_grid, curr_ic, 'r-', label='Flow Generada', linewidth=2)
-plt.title("Condición Inicial (t=0)")
-plt.legend()
-plt.grid(True, alpha=0.3)
+    domain = domain1D(
+        N = args.N,
+        L = args.L,
+        dt_physics = args.dt_physics ,
+        steps_physics = args.steps_physics,
+    )
+    alpha = 0.05
 
-# Gráfica 2: Estado Final (Lo que observamos)
-plt.subplot(1, 3, 2)
-plt.plot(x_grid, gt_final, 'k--', label='Observación Real', linewidth=2)
-plt.plot(x_grid, curr_final, 'b-', label='Simulación desde Flow', linewidth=2)
-plt.title(f"Estado Final (t={dt_physics*steps_physics:.2f})")
-plt.legend()
-plt.grid(True, alpha=0.3)
+    x_grid = jnp.linspace(0, domain.L, domain.N)
+    gt_ic = jnp.exp(-100 * (x_grid - 0.3)**2) + 0.5 * jnp.exp(-100 * (x_grid - 0.7)**2)
 
-# Gráfica 3: Curva de Aprendizaje
-plt.subplot(1, 3, 3)
-plt.plot(loss_history)
-plt.yscale('log')
-plt.title("Convergencia del Error")
-plt.xlabel("Iteraciones")
-plt.ylabel("MSE Loss")
-plt.grid(True, alpha=0.3)
+    # Simulamos para obtener lo que "vemos" en la realidad (Target)
+    gt_final = solve_heat_equation(gt_ic,domain)
 
-plt.tight_layout()
-plt.show()
+    print("Objetivo: Encontrar la curva inicial que generó el estado final observado.")
+
+    model = SimpleVectorField()
+    key = random.PRNGKey(0)
+    params = model.init(key, jnp.zeros(domain.N), 0.0)
+    optimizer = optax.adam(learning_rate=args.lr)
+    opt_state = optimizer.init(params)
+
+
+    # Bucle de entrenamiento
+    loss_history = []
+    print("\nComenzando entrenamiento...")
+
+    
+    epochs = 5000
+    for i in range(epochs):
+        key, subkey = random.split(key)
+        params, opt_state, loss, (curr_ic, curr_final) = train_step(params, opt_state, subkey, domain, alpha, args.n_samples)
+        loss_history.append(loss)
+    
+        if i % 100 == 0:
+            print(f"Iteración {i}: Loss = {loss:.6f}")
+    
+    # ==========================================
+    # 7. Visualización
+    # ==========================================
+    plt.figure(figsize=(15, 5))
+    
+    # Gráfica 1: Condiciones Iniciales (Lo que el modelo imagina vs Realidad)
+    plt.subplot(1, 3, 1)
+    plt.plot(x_grid, gt_ic, 'k--', label='Real IC (Secreta)', linewidth=2)
+    plt.plot(x_grid, curr_ic, 'r-', label='Flow Generada', linewidth=2)
+    plt.title("Condición Inicial (t=0)")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    # Gráfica 2: Estado Final (Lo que observamos)
+    plt.subplot(1, 3, 2)
+    plt.plot(x_grid, gt_final, 'k--', label='Observación Real', linewidth=2)
+    plt.plot(x_grid, curr_final, 'b-', label='Simulación desde Flow', linewidth=2)
+    plt.title(f"Estado Final (t={args.dt_physics*args.steps_physics:.2f})")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    # Gráfica 3: Curva de Aprendizaje
+    plt.subplot(1, 3, 3)
+    plt.plot(loss_history)
+    plt.yscale('log')
+    plt.title("Convergencia del Error")
+    plt.xlabel("Iteraciones")
+    plt.ylabel("MSE Loss")
+    plt.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    #plt.show()
