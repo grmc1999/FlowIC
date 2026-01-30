@@ -20,7 +20,8 @@ from jax.tree_util import register_dataclass
 #laplacian_matrix = (jnp.diag(diag) +
 #                    jnp.diag(off_diag, k=1) +
 #                    jnp.diag(off_diag, k=-1)) / (dx**2)
-@register_dataclass(register_dataclass, data_fields=['N', 'L','dt_physics','steps_physics'])
+#@register_dataclass(register_dataclass, data_fields=['N', 'L','dt_physics','steps_physics'])
+@jax.tree_util.register_dataclass
 @dataclass
 class domain1D:
     N: int = 64
