@@ -7,7 +7,7 @@ import diffrax
 import matplotlib.pyplot as plt
 from typing import Union
 from dataclasses import dataclass
-
+from jax.tree_util import register_dataclass
 # ==========================================
 # 1. Configuración del Dominio 1D
 # ==========================================
@@ -20,7 +20,7 @@ from dataclasses import dataclass
 #laplacian_matrix = (jnp.diag(diag) +
 #                    jnp.diag(off_diag, k=1) +
 #                    jnp.diag(off_diag, k=-1)) / (dx**2)
-
+@register_dataclass(register_dataclass, data_fields=['N', 'L','dt_physics','steps_physics'])
 @dataclass
 class domain1D:
     N: int = 64
@@ -251,7 +251,7 @@ if __name__ == "__main__":
     plt.subplot(1, 3, 3)
     plt.plot(loss_history)
     plt.yscale('log')
-    plt.title("Convergencia del Error")
+    plt.title(f"Convergencia del Error samples {args.n_samples}")
     plt.xlabel("Iteraciones")
     plt.ylabel("MSE Loss")
     plt.grid(True, alpha=0.3)
