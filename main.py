@@ -152,7 +152,7 @@ def generate_ic(params, model, rng_key, domain):
 @partial(jit, static_argnums=(3,4))
 def loss_fn(params, key,domain,alpha,n_samples):
     # 1. Flow: Generar IC candidata
-    key, *keys = random.split(key,num=n_samples)
+    key, key_, *keys = random.split(key,num=n_samples + 2 )
     #pred_ic = generate_ic(params, model, key)
 #
     ## 2. Física: Simular futuro
@@ -162,7 +162,8 @@ def loss_fn(params, key,domain,alpha,n_samples):
     #    solve_heat_equation_random(generate_ic(params,model,key,domain),domain,alpha)
     #    ),0)(jnp.array(keys))
 
-    gt_ic,gt_final = jax.vmap(lambda key: solve_heat_equation_random(key, domain, alpha))(jnp.array(keys))
+    #gt_ic,gt_final = jax.vmap(lambda key: solve_heat_equation_random(key, domain, alpha))(jnp.array(keys))
+    gt_ic,gt_final = solve_heat_equation_random(jnp.array(key_), domain, alpha)
 
     pred_ic = jax.vmap(lambda k: generate_ic(params, model, k, domain))(jnp.array(keys))
     pred_final = jax.vmap(lambda ic: solve_heat_equation(ic, domain, alpha))(pred_ic)
