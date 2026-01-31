@@ -163,9 +163,10 @@ def loss_fn(params, key,domain,alpha,n_samples, gt_ic):
     #    ),0)(jnp.array(keys))
 
     #gt_ic,gt_final = solve_heat_equation_random(jnp.array(key_), domain, alpha)
-    gt_final = jax.vmap(lambda ic: solve_heat_equation(gt_ic , domain, alpha))(pred_ic)
+    
 
     pred_ic = jax.vmap(lambda k: generate_ic(params, model, k, domain))(jnp.array(keys))
+    gt_final = jax.vmap(lambda ic: solve_heat_equation(gt_ic , domain, alpha))(pred_ic)
     pred_final = jax.vmap(lambda ic: solve_heat_equation(ic, domain, alpha))(pred_ic)
     
 
