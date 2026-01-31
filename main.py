@@ -150,7 +150,7 @@ def generate_ic(params, model, rng_key, domain):
 
 
 @partial(jit, static_argnums=(3,4))
-def loss_fn(params, key,domain,alpha,n_samples):
+def loss_fn(params, key,domain,alpha,n_samples, gt_ic):
     # 1. Flow: Generar IC candidata
     key, key_, *keys = random.split(key,num=n_samples + 2 )
     #pred_ic = generate_ic(params, model, key)
@@ -162,11 +162,12 @@ def loss_fn(params, key,domain,alpha,n_samples):
     #    solve_heat_equation_random(generate_ic(params,model,key,domain),domain,alpha)
     #    ),0)(jnp.array(keys))
 
-    #gt_ic,gt_final = jax.vmap(lambda key: solve_heat_equation_random(key, domain, alpha))(jnp.array(keys))
-    gt_ic,gt_final = solve_heat_equation_random(jnp.array(key_), domain, alpha)
+    #gt_ic,gt_final = solve_heat_equation_random(jnp.array(key_), domain, alpha)
+    gt_final = jax.vmap(lambda ic: solve_heat_equation(gt_ic , domain, alpha))(pred_ic)
 
     pred_ic = jax.vmap(lambda k: generate_ic(params, model, k, domain))(jnp.array(keys))
     pred_final = jax.vmap(lambda ic: solve_heat_equation(ic, domain, alpha))(pred_ic)
+    
 
     loss = jnp.mean((pred_final - gt_final)**2)
     ic_loss = jnp.mean((gt_ic - pred_ic)**2)
@@ -177,8 +178,8 @@ def loss_fn(params, key,domain,alpha,n_samples):
     #return loss, (pred_ic, pred_final)
 
 @partial(jit, static_argnums=(4,5))
-def train_step(params, opt_state, key, domain, alpha, n_samples):
-    (loss, aux), grads = value_and_grad(loss_fn, has_aux=True)(params, key,  domain, alpha, n_samples)
+def train_step(params, opt_state, key, domain, alpha, n_samples, gt_ic):
+    (loss, aux), grads = value_and_grad(loss_fn, has_aux=True)(params, key,  domain, alpha, n_samples, gt_ic)
     updates, opt_state = optimizer.update(grads, opt_state)
     params = optax.apply_updates(params, updates)
     return params, opt_state, loss, aux
@@ -231,7 +232,7 @@ if __name__ == "__main__":
     #epochs = 5000
     for i in range(args.epochs):
         key, subkey = random.split(key)
-        params, opt_state, loss, (curr_ic, curr_final, ic_loss,gt_ic,gt_final) = train_step(params, opt_state, subkey, domain, alpha, args.n_samples)
+        params, opt_state, loss, (curr_ic, curr_final, ic_loss,gt_ic,gt_final) = train_step(params, opt_state, subkey, domain, alpha, args.n_samples, gt_ic)
         loss_history.append(loss)
         ic_loss_history.append(ic_loss)
     
