@@ -239,7 +239,7 @@ if __name__ == "__main__":
     # Gráfica 1: Condiciones Iniciales (Lo que el modelo imagina vs Realidad)
     plt.subplot(1, 3, 1)
     plt.plot(x_grid, gt_ic, 'k--', label='Real IC (Secreta)', linewidth=2)
-    plt.plot(x_grid, jnp.mean(curr_ic), 'r-', label='Flow Generada', linewidth=2)
+    plt.plot(x_grid, jnp.mean(curr_ic,0), 'r-', label='Flow Generada', linewidth=2)
     plt.title("Condición Inicial (t=0)")
     plt.legend()
     plt.grid(True, alpha=0.3)
