@@ -257,5 +257,5 @@ if __name__ == "__main__":
             plt.grid(True, alpha=0.3)
 
             plt.tight_layout()
-            plt.savefig(f'exp_epochs_{i}_samples_{args.n_samples}_lr_{args.lr}')
+            plt.savefig(f'exp_epochs_{i}_samples_{args.n_samples}_lr_{args.lr}.png')
     #plt.show()
