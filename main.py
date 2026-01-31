@@ -255,7 +255,7 @@ if __name__ == "__main__":
 
             # Gráfica 2: Estado Final (Lo que observamos)
             plt.subplot(1, 3, 2)
-            plt.plot(x_grid, gt_final, 'k--', label='Observación Real', linewidth=2)
+            plt.plot(x_grid, gt_final[0], 'k--', label='Observación Real', linewidth=2)
             plt.plot(x_grid, curr_final[0], 'b-', label='Simulación desde Flow', linewidth=2)
             plt.title(f"Estado Final (t={args.dt_physics*args.steps_physics:.2f})")
             plt.legend()
