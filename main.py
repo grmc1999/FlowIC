@@ -9,18 +9,7 @@ from typing import Union
 from dataclasses import dataclass
 from jax.tree_util import register_dataclass
 from functools import partial
-# ==========================================
-# 1. Configuración del Dominio 1D
-# ==========================================
 
-
-# Matriz del Laplaciano 1D (Diferencias Finitas) pre-calculada
-# Esto hace la física extremadamente rápida y estable
-#diag = -2.0 * jnp.ones(N)
-#off_diag = jnp.ones(N - 1)
-#laplacian_matrix = (jnp.diag(diag) +
-#                    jnp.diag(off_diag, k=1) +
-#                    jnp.diag(off_diag, k=-1)) / (dx**2)
 
 #@jax.tree_util.register_dataclass
 @partial(register_dataclass, data_fields = [], meta_fields=['N', 'L','dt_physics','steps_physics'])
@@ -33,12 +22,39 @@ class domain1D:
     def __post_init__(self):
         self.dx = self.L/(self.N-1)
 
-#@dataclass
-#class domainmaps:
-#    a: Union[callable,float]
-#    def __post_init__(self):
-#        if isinstance(a,callable):
-#            a = a(x_grid)
+@jit
+def sample_valid_ic(key, domain, scale=0.5, smooth=True):
+    """
+    Sample a random *valid* initial condition u0:
+    - Dirichlet BC: u0[0]=u0[-1]=0
+    - Optional smoothness via a simple low-pass filter
+    - Bounded via tanh
+    """
+    z = random.normal(key, (domain.N,)) * scale
+
+    if smooth:
+        # Simple low-pass in Fourier domain (keeps only low frequencies)
+        Z = jnp.fft.rfft(z)
+        k = Z.shape[0]
+        cutoff = jnp.maximum(2, k // 8)  # keep ~12.5% lowest frequencies
+        mask = (jnp.arange(k) < cutoff).astype(Z.dtype)
+        z = jnp.fft.irfft(Z * mask, n=domain.N)
+
+    u0 = jnp.tanh(z)  # keep bounded
+    u0 = u0.at[0].set(0.0)
+    u0 = u0.at[-1].set(0.0)
+    return u0
+
+
+@partial(jit, static_argnums=(2,))
+def solve_heat_equation_random(key, domain, alpha):
+    """
+    Every time you call this, it samples a new random valid IC and solves physics.
+    Returns (ic, final).
+    """
+    ic = sample_valid_ic(key, domain)
+    final = solve_heat_equation(ic, domain, alpha)
+    return ic, final
 
 
 # ==========================================
@@ -60,8 +76,8 @@ def solve_heat_equation(ic, domain, alpha):
     #dx = L / (N - 1)
     dx = domain.dx
     #alpha = 0.05      # Coeficiente de difusión
-    dt_physics = 0.001
-    steps_physics = 200 # Pasos de simulación física
+    dt_physics = domain.dt_physics
+    steps_physics = domain.steps_physics # Pasos de simulación física
 
     diag = -2.0 * jnp.ones(N)
     off_diag = jnp.ones(N - 1)
@@ -131,27 +147,6 @@ def generate_ic(params, model, rng_key, domain):
     generated_ic = generated_ic.at[-1].set(0.0)
 
     return generated_ic
-
-# ==========================================
-# 5. Preparar el "Ground Truth" (El Objetivo)
-# ==========================================
-# Creamos una condición inicial real (Doble pico gaussiano)
-#x_grid = jnp.linspace(0, L, N)
-#gt_ic = jnp.exp(-100 * (x_grid - 0.3)**2) + 0.5 * jnp.exp(-100 * (x_grid - 0.7)**2)
-#
-## Simulamos para obtener lo que "vemos" en la realidad (Target)
-#gt_final = solve_heat_equation(gt_ic)
-#
-#print("Objetivo: Encontrar la curva inicial que generó el estado final observado.")
-
-# ==========================================
-# 6. Entrenamiento (Inverse Physics Design)
-# ==========================================
-#model = SimpleVectorField()
-#key = random.PRNGKey(0)
-#params = model.init(key, jnp.zeros(N), 0.0)
-#optimizer = optax.adam(learning_rate=0.001)
-#opt_state = optimizer.init(params)
 
 
 @partial(jit, static_argnums=(3,4))
@@ -234,33 +229,33 @@ if __name__ == "__main__":
     # ==========================================
     # 7. Visualización
     # ==========================================
-    plt.figure(figsize=(15, 5))
-    
-    # Gráfica 1: Condiciones Iniciales (Lo que el modelo imagina vs Realidad)
-    plt.subplot(1, 3, 1)
-    plt.plot(x_grid, gt_ic, 'k--', label='Real IC (Secreta)', linewidth=2)
-    plt.plot(x_grid, jnp.mean(curr_ic,0), 'r-', label='Flow Generada', linewidth=2)
-    plt.title("Condición Inicial (t=0)")
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    
-    # Gráfica 2: Estado Final (Lo que observamos)
-    plt.subplot(1, 3, 2)
-    plt.plot(x_grid, gt_final, 'k--', label='Observación Real', linewidth=2)
-    plt.plot(x_grid, curr_final[0], 'b-', label='Simulación desde Flow', linewidth=2)
-    plt.title(f"Estado Final (t={args.dt_physics*args.steps_physics:.2f})")
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    
-    # Gráfica 3: Curva de Aprendizaje
-    plt.subplot(1, 3, 3)
-    plt.plot(loss_history)
-    plt.yscale('log')
-    plt.title(f"Convergencia del Error samples {args.n_samples}")
-    plt.xlabel("Iteraciones")
-    plt.ylabel("MSE Loss")
-    plt.grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    plt.savefig(f'exp_epochs_{args.epochs}_samples_{args.n_samples}_lr_{args.n_samples}')
+            plt.figure(figsize=(15, 5))
+
+            # Gráfica 1: Condiciones Iniciales (Lo que el modelo imagina vs Realidad)
+            plt.subplot(1, 3, 1)
+            plt.plot(x_grid, gt_ic, 'k--', label='Real IC (Secreta)', linewidth=2)
+            plt.plot(x_grid, curr_ic[0], 'r-', label='Flow Generada', linewidth=2)
+            plt.title("Condición Inicial (t=0)")
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+
+            # Gráfica 2: Estado Final (Lo que observamos)
+            plt.subplot(1, 3, 2)
+            plt.plot(x_grid, gt_final, 'k--', label='Observación Real', linewidth=2)
+            plt.plot(x_grid, curr_final[0], 'b-', label='Simulación desde Flow', linewidth=2)
+            plt.title(f"Estado Final (t={args.dt_physics*args.steps_physics:.2f})")
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+
+            # Gráfica 3: Curva de Aprendizaje
+            plt.subplot(1, 3, 3)
+            plt.plot(loss_history)
+            plt.yscale('log')
+            plt.title(f"Convergencia del Error samples {args.n_samples}")
+            plt.xlabel("Iteraciones")
+            plt.ylabel("MSE Loss")
+            plt.grid(True, alpha=0.3)
+
+            plt.tight_layout()
+            plt.savefig(f'exp_epochs_{i}_samples_{args.n_samples}_lr_{args.lr}')
     #plt.show()
