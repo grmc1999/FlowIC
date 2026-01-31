@@ -169,7 +169,7 @@ def loss_fn(params, key,domain,alpha,n_samples):
 
     loss = jnp.mean((pred_final - gt_final)**2)
     ic_loss = jnp.mean((gt_ic - pred_ic)**2)
-    return loss, (pred_ic, pred_final,ic_loss)
+    return loss, (pred_ic, pred_final,ic_loss,gt_ic,gt_final)
 
     ## 3. Error: Comparar con el estado final real
     #loss = jnp.mean(jax.numpy.absolute(pred_final - gt_final))
@@ -230,7 +230,7 @@ if __name__ == "__main__":
     #epochs = 5000
     for i in range(args.epochs):
         key, subkey = random.split(key)
-        params, opt_state, loss, (curr_ic, curr_final, ic_loss) = train_step(params, opt_state, subkey, domain, alpha, args.n_samples)
+        params, opt_state, loss, (curr_ic, curr_final, ic_loss,gt_ic,gt_final) = train_step(params, opt_state, subkey, domain, alpha, args.n_samples)
         loss_history.append(loss)
         ic_loss_history.append(ic_loss)
     
@@ -244,7 +244,7 @@ if __name__ == "__main__":
 
             # Gráfica 1: Condiciones Iniciales (Lo que el modelo imagina vs Realidad)
             plt.subplot(1, 3, 1)
-            plt.plot(x_grid, gt_ic, 'k--', label='Real IC (Secreta)', linewidth=2)
+            plt.plot(x_grid, gt_ic[0], 'k--', label='Real IC (Secreta)', linewidth=2)
             plt.plot(x_grid, curr_ic[0], 'r-', label='Flow Generada', linewidth=2)
             plt.title("Condición Inicial (t=0)")
             plt.legend()
@@ -252,7 +252,7 @@ if __name__ == "__main__":
 
             # Gráfica 2: Estado Final (Lo que observamos)
             plt.subplot(1, 3, 2)
-            plt.plot(x_grid, gt_final, 'k--', label='Observación Real', linewidth=2)
+            plt.plot(x_grid, gt_final[0], 'k--', label='Observación Real', linewidth=2)
             plt.plot(x_grid, curr_final[0], 'b-', label='Simulación desde Flow', linewidth=2)
             plt.title(f"Estado Final (t={args.dt_physics*args.steps_physics:.2f})")
             plt.legend()
