@@ -157,14 +157,23 @@ def loss_fn(params, key,domain,alpha,n_samples):
 #
     ## 2. Física: Simular futuro
     #pred_final = solve_heat_equation(pred_ic)
-    pred_ic,pred_final = jax.vmap(lambda key: (
-        generate_ic(params,model,key,domain),
-        solve_heat_equation_random(generate_ic(params,model,key,domain),domain,alpha)
-        ),0)(jnp.array(keys))
+    #pred_ic,pred_final = jax.vmap(lambda key: (
+    #    generate_ic(params,model,key,domain),
+    #    solve_heat_equation_random(generate_ic(params,model,key,domain),domain,alpha)
+    #    ),0)(jnp.array(keys))
 
-    # 3. Error: Comparar con el estado final real
-    loss = jnp.mean(jax.numpy.absolute(pred_final - gt_final))
-    return loss, (pred_ic, pred_final)
+    gt_ic,gt_final = jax.vmap(lambda key: solve_heat_equation_random(key, domain, alpha))(jnp.array(keys))
+
+    pred_ic = jax.vmap(lambda k: generate_ic(params, model, k, domain))(jnp.array(keys))
+    pred_final = jax.vmap(lambda ic: solve_heat_equation(ic, domain, alpha))(pred_ic)
+
+    loss = jnp.mean((pred_final - gt_final)**2)
+    ic_loss = jnp.mean((gt_ic - pred_ic)**2)
+    return loss, (pred_ic, pred_final,ic_loss)
+
+    ## 3. Error: Comparar con el estado final real
+    #loss = jnp.mean(jax.numpy.absolute(pred_final - gt_final))
+    #return loss, (pred_ic, pred_final)
 
 @partial(jit, static_argnums=(4,5))
 def train_step(params, opt_state, key, domain, alpha, n_samples):
@@ -214,14 +223,16 @@ if __name__ == "__main__":
 
     # Bucle de entrenamiento
     loss_history = []
+    ic_loss_history = []
     print("\nComenzando entrenamiento...")
 
     
     #epochs = 5000
     for i in range(args.epochs):
         key, subkey = random.split(key)
-        params, opt_state, loss, (curr_ic, curr_final) = train_step(params, opt_state, subkey, domain, alpha, args.n_samples)
+        params, opt_state, loss, (curr_ic, curr_final, ic_loss) = train_step(params, opt_state, subkey, domain, alpha, args.n_samples)
         loss_history.append(loss)
+        ic_loss_history.append(ic_loss)
     
         if i % 100 == 0:
             print(f"Iteración {i}: Loss = {loss:.6f}")
@@ -250,6 +261,7 @@ if __name__ == "__main__":
             # Gráfica 3: Curva de Aprendizaje
             plt.subplot(1, 3, 3)
             plt.plot(loss_history)
+            plt.plot(ic_loss_history)
             plt.yscale('log')
             plt.title(f"Convergencia del Error samples {args.n_samples}")
             plt.xlabel("Iteraciones")
