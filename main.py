@@ -159,7 +159,7 @@ def loss_fn(params, key,domain,alpha,n_samples):
     #pred_final = solve_heat_equation(pred_ic)
     pred_ic,pred_final = jax.vmap(lambda key: (
         generate_ic(params,model,key,domain),
-        solve_heat_equation(generate_ic(params,model,key,domain),domain,alpha)
+        solve_heat_equation_random(generate_ic(params,model,key,domain),domain,alpha)
         ),0)(jnp.array(keys))
 
     # 3. Error: Comparar con el estado final real
