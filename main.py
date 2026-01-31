@@ -243,18 +243,29 @@ if __name__ == "__main__":
     # ==========================================
     # 7. Visualización
     # ==========================================
-            plt.figure(figsize=(15, 5))
+            plt.figure(figsize=(20, 5))
 
             # Gráfica 1: Condiciones Iniciales (Lo que el modelo imagina vs Realidad)
             plt.subplot(1, 3, 1)
             plt.plot(x_grid, gt_ic, 'k--', label='Real IC (Secreta)', linewidth=2)
             plt.plot(x_grid, curr_ic[0], 'r-', label='Flow Generada', linewidth=2)
+            plt.plot(x_grid, curr_ic[2], 'r-', label='Flow Generada', linewidth=2)
+            plt.plot(x_grid, curr_ic[4], 'r-', label='Flow Generada', linewidth=2)
+            plt.plot(x_grid, curr_ic[6], 'r-', label='Flow Generada', linewidth=2)
+            plt.plot(x_grid, curr_ic[7], 'r-', label='Flow Generada', linewidth=2)
+            plt.title("Condición Inicial (t=0)")
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+
+            plt.subplot(1, 3, 2)
+            plt.plot(x_grid, gt_ic, 'k--', label='Real IC (Secreta)', linewidth=2)
+            plt.plot(x_grid, jnp.mean(curr_ic,0), 'r-', label='Flow Generada', linewidth=2)
             plt.title("Condición Inicial (t=0)")
             plt.legend()
             plt.grid(True, alpha=0.3)
 
             # Gráfica 2: Estado Final (Lo que observamos)
-            plt.subplot(1, 3, 2)
+            plt.subplot(1, 3, 3)
             plt.plot(x_grid, gt_final[0], 'k--', label='Observación Real', linewidth=2)
             plt.plot(x_grid, curr_final[0], 'b-', label='Simulación desde Flow', linewidth=2)
             plt.title(f"Estado Final (t={args.dt_physics*args.steps_physics:.2f})")
@@ -262,7 +273,7 @@ if __name__ == "__main__":
             plt.grid(True, alpha=0.3)
 
             # Gráfica 3: Curva de Aprendizaje
-            plt.subplot(1, 3, 3)
+            plt.subplot(1, 3, 4)
             plt.plot(loss_history)
             plt.plot(ic_loss_history)
             plt.yscale('log')
