@@ -100,29 +100,63 @@ def solve_heat_equation(ic, domain, alpha):
 # ==========================================
 # 3. Flow Matching Network (MLP)
 # ==========================================
+#class SimpleVectorField(n.Module):
+#    """
+#    Red simple que recibe el estado actual (vector N) y el tiempo t,
+#    y predice la velocidad de cambio para la EDO generativa.
+#    """
+#    @nn.compact
+#    def __call__(self, x, t):
+#        # x shape: (N,)
+#        # t shape: escalar
+#
+#        # Concatenamos el tiempo al vector de entrada
+#        t_vec = jnp.ones((1,)) * t
+#        inp = jnp.concatenate([x, t_vec], axis=0)
+#
+#        # MLP simple: Dense -> Gelu -> Dense
+#        h = nn.Dense(256)(inp)
+#        #h = nn.BatchNorm(128)(h)
+#        h = nn.gelu(h)
+#        h = nn.Dense(256)(h)
+#        #h = nn.BatchNorm(128)(h)
+#        h = nn.gelu(h)
+#        # Salida del mismo tamaño que la entrada física (N)
+#        out = nn.Dense(64)(h)
+#        return out
+    
 class SimpleVectorField(nn.Module):
     """
-    Red simple que recibe el estado actual (vector N) y el tiempo t,
-    y predice la velocidad de cambio para la EDO generativa.
+    Red Convolucional (CNN 1D) para capturar correlaciones espaciales.
+    Recibe estado (N,) y tiempo t, predice velocidad (N,).
     """
     @nn.compact
-    def __call__(self, x, t):
+    def _call_(self, x, t):
         # x shape: (N,)
         # t shape: escalar
+        
+        N_points = x.shape[0]
+        
+        # 1. Preparar input para Conv: (Sequence, Channels) -> (N, 1)
+        x_in = x.reshape((N_points, 1))
+        
+        # 2. Canal de Tiempo: (N, 1) lleno con el valor de t
+        t_in = jnp.full((N_points, 1), t)
+        
+        # Concatenamos: Input es (N, 2) -> valor y tiempo en cada punto espacial
+        inp = jnp.concatenate([x_in, t_in], axis=-1)
 
-        # Concatenamos el tiempo al vector de entrada
-        t_vec = jnp.ones((1,)) * t
-        inp = jnp.concatenate([x, t_vec], axis=0)
-
-        # MLP simple: Dense -> Gelu -> Dense
-        h = nn.Dense(256)(inp)
-        #h = nn.BatchNorm(128)(h)
+        # 3. Backbone Convolucional (Respetando localidad espacial)
+        # Padding 'SAME' mantiene la dimensión N
+        h = nn.Conv(features=64, kernel_size=5, padding='SAME')(inp)
         h = nn.gelu(h)
-        h = nn.Dense(256)(h)
-        #h = nn.BatchNorm(128)(h)
-        h = nn.gelu(h)
-        # Salida del mismo tamaño que la entrada física (N)
-        out = nn.Dense(64)(h)
+        
+        # 4. Proyección de salida
+        # Queremos volver a 1 solo canal (velocidad)
+        h = nn.Conv(features=1, kernel_size=3, padding='SAME')(h)
+        
+        # Flatten para volver a (N,)
+        out = h.reshape((N_points,))
         return out
 
 # ==========================================
