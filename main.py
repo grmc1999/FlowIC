@@ -151,10 +151,10 @@ class SimpleVectorField(nn.Module):
         h = nn.Conv(features=64, kernel_size=5, padding='SAME')(inp)
         h = nn.gelu(h)
 
-        h = nn.Conv(features=64, kernel_size=5, padding='SAME')(inp)
+        h = nn.Conv(features=64, kernel_size=5, padding='SAME')(h)
         h = nn.gelu(h)
 
-        h = nn.Conv(features=64, kernel_size=5, padding='SAME')(inp)
+        h = nn.Conv(features=64, kernel_size=5, padding='SAME')(h)
         h = nn.gelu(h)
         
         # 4. Proyección de salida
