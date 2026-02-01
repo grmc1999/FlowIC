@@ -177,9 +177,11 @@ class SimpleVectorField(nn.Module):
 # ==========================================
 # 4. Generador (Integrador ODE)
 # ==========================================
-def generate_ic(params, model, rng_key, domain):
+
+@partial(jit, static_argnums=(4,))
+def generate_ic(params, model, rng_key, domain, gen_noise):
     """Transfoma Ruido -> Condición Inicial Candidata"""
-    z0 = random.normal(rng_key, (domain.N,)) * 0.5 # Ruido inicial
+    z0 = random.normal(rng_key, (domain.N,)) * gen_noise # Ruido inicial
 
     def ode_func(t, y, args):
         return model.apply(params, y, t)
@@ -198,8 +200,8 @@ def generate_ic(params, model, rng_key, domain):
     return generated_ic
 
 
-@partial(jit, static_argnums=(3,4))
-def loss_fn(params, key,domain,alpha,n_samples, gt_ic):
+@partial(jit, static_argnums=(3,4,6))
+def loss_fn(params, key,domain,alpha,n_samples, gt_ic, gen_noise):
     # 1. Flow: Generar IC candidata
     key, key_, *keys = random.split(key,num=n_samples + 2 )
     #pred_ic = generate_ic(params, model, key)
@@ -214,7 +216,7 @@ def loss_fn(params, key,domain,alpha,n_samples, gt_ic):
     #gt_ic,gt_final = solve_heat_equation_random(jnp.array(key_), domain, alpha)
     
 
-    pred_ic = jax.vmap(lambda k: generate_ic(params, model, k, domain))(jnp.array(keys))
+    pred_ic = jax.vmap(lambda k: generate_ic(params, model, k, domain, gen_noise))(jnp.array(keys))
     gt_final = jax.vmap(lambda ic: solve_heat_equation(gt_ic , domain, alpha))(jnp.array(keys))
     pred_final = jax.vmap(lambda ic: solve_heat_equation(ic, domain, alpha))(pred_ic)
     
@@ -227,9 +229,9 @@ def loss_fn(params, key,domain,alpha,n_samples, gt_ic):
     #loss = jnp.mean(jax.numpy.absolute(pred_final - gt_final))
     #return loss, (pred_ic, pred_final)
 
-@partial(jit, static_argnums=(4,5))
-def train_step(params, opt_state, key, domain, alpha, n_samples, gt_ic):
-    (loss, aux), grads = value_and_grad(loss_fn, has_aux=True)(params, key,  domain, alpha, n_samples, gt_ic)
+@partial(jit, static_argnums=(4,5,7))
+def train_step(params, opt_state, key, domain, alpha, n_samples, gt_ic, gen_noise):
+    (loss, aux), grads = value_and_grad(loss_fn, has_aux=True)(params, key,  domain, alpha, n_samples, gt_ic,gen_noise)
     updates, opt_state = optimizer.update(grads, opt_state)
     params = optax.apply_updates(params, updates)
     return params, opt_state, loss, aux
@@ -247,6 +249,7 @@ if __name__ == "__main__":
     parser.add_argument('--N', type=int, default='outputs')
     parser.add_argument('--epochs', type=int, default='outputs')
     parser.add_argument('--L', type=float, default=0)
+    parser.add_argument('--gen_noise', type=float, default=0.5)
     
     args = parser.parse_args()
 
@@ -282,7 +285,7 @@ if __name__ == "__main__":
     #epochs = 5000
     for i in range(args.epochs):
         key, subkey = random.split(key)
-        params, opt_state, loss, (curr_ic, curr_final, ic_loss,gt_ic,gt_final) = train_step(params, opt_state, subkey, domain, alpha, args.n_samples, gt_ic)
+        params, opt_state, loss, (curr_ic, curr_final, ic_loss,gt_ic,gt_final) = train_step(params, opt_state, subkey, domain, alpha, args.n_samples, gt_ic,args.gen_noise)
         loss_history.append(loss)
         ic_loss_history.append(ic_loss)
     
@@ -332,5 +335,5 @@ if __name__ == "__main__":
             plt.grid(True, alpha=0.3)
 
             plt.tight_layout()
-            plt.savefig(f'exp_epochs_{i}_samples_{args.n_samples}_lr_{args.lr}.png')
+            plt.savefig(f'exp_epochs_{i}_samples_{args.n_samples}_lr_{args.lr}_generative_noise_{args.gen_noise}.png')
     #plt.show()
