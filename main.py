@@ -178,7 +178,7 @@ class SimpleVectorField(nn.Module):
 # 4. Generador (Integrador ODE)
 # ==========================================
 
-@partial(jit, static_argnums=(4,))
+@partial(jit, static_argnums=(4,1))
 def generate_ic(params, model, rng_key, domain, gen_noise):
     """Transfoma Ruido -> Condición Inicial Candidata"""
     z0 = random.normal(rng_key, (domain.N,)) * gen_noise # Ruido inicial
