@@ -150,6 +150,12 @@ class SimpleVectorField(nn.Module):
         # Padding 'SAME' mantiene la dimensión N
         h = nn.Conv(features=64, kernel_size=5, padding='SAME')(inp)
         h = nn.gelu(h)
+
+        h = nn.Conv(features=64, kernel_size=5, padding='SAME')(inp)
+        h = nn.gelu(h)
+
+        h = nn.Conv(features=64, kernel_size=5, padding='SAME')(inp)
+        h = nn.gelu(h)
         
         # 4. Proyección de salida
         # Queremos volver a 1 solo canal (velocidad)
