@@ -131,7 +131,7 @@ class SimpleVectorField(nn.Module):
     Recibe estado (N,) y tiempo t, predice velocidad (N,).
     """
     @nn.compact
-    def _call_(self, x, t):
+    def __call__(self, x, t):
         # x shape: (N,)
         # t shape: escalar
         
