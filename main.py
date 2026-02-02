@@ -186,7 +186,7 @@ def generate_ic(params, model, rng_key, domain, gen_noise, stochastic):
         #z0 = random.normal(rng_key, (domain.N,)) * gen_noise # Ruido inicial
         z0 = getattr(random,stochastic)(rng_key, (domain.N,)) * gen_noise # Ruido inicial
     elif stochastic=="uniform":
-        z0 = random.ball(key, 1, p=2, shape=(domain.N,))
+        z0 = random.ball(rng_key, 1, p=2, shape=(domain.N,))
     else:
         z0 = jnp.zeros((domain.N,))
 
