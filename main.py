@@ -182,10 +182,10 @@ class SimpleVectorField(nn.Module):
 def generate_ic(params, model, rng_key, domain, gen_noise, stochastic):
     """Transfoma Ruido -> Condición Inicial Candidata"""
     #if isinstance(stochastic,str):
-    if stochastic!="normal":
+    if stochastic=="normal":
         #z0 = random.normal(rng_key, (domain.N,)) * gen_noise # Ruido inicial
         z0 = getattr(random,stochastic)(rng_key, (domain.N,)) * gen_noise # Ruido inicial
-    elif stochastic!="uniform":
+    elif stochastic=="uniform":
         z0 = random.ball(key, 1, p=2, shape=())
     else:
         z0 = jnp.zeros((domain.N,))
