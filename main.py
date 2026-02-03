@@ -100,7 +100,7 @@ def solve_heat_equation(ic, domain, alpha):
 # ==========================================
 # 3. Flow Matching Network (MLP)
 # ==========================================
-class SimpleVectorField(n.Module):
+class SimpleVectorField(nn.Module):
     """
     Red simple que recibe el estado actual (vector N) y el tiempo t,
     y predice la velocidad de cambio para la EDO generativa.
