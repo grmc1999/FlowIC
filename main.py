@@ -273,7 +273,7 @@ if __name__ == "__main__":
             plt.subplot(1, 4, 1)
             plt.plot(x_grid, gt_ic, 'k--', label='Real IC', linewidth=2)
             plt.plot(x_grid, curr_ic_m, 'r-', label='Generated Flow', linewidth=2)
-            plt.fill_between(x_grid, curr_ic_m + curr_ic_v,curr_ic_m - curr_ic_v,alpha=0.5, linewidth=2)
+            plt.fill_between(x_grid, curr_ic_m + curr_ic_v,curr_ic_m - curr_ic_v,color = "r",alpha=0.5, linewidth=2)
             plt.title("Initial Condition (t=0)")
             plt.legend()
             plt.grid(True, alpha=0.3)
