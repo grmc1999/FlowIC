@@ -97,34 +97,6 @@ def solve_heat_equation(ic, domain, alpha):
     final_u, _ = jax.lax.scan(step_fn, ic, None, length=steps_physics)
     return final_u
 
-# ==========================================
-# 3. Flow Matching Network (MLP)
-# ==========================================
-#class SimpleVectorField(n.Module):
-#    """
-#    Red simple que recibe el estado actual (vector N) y el tiempo t,
-#    y predice la velocidad de cambio para la EDO generativa.
-#    """
-#    @nn.compact
-#    def __call__(self, x, t):
-#        # x shape: (N,)
-#        # t shape: escalar
-#
-#        # Concatenamos el tiempo al vector de entrada
-#        t_vec = jnp.ones((1,)) * t
-#        inp = jnp.concatenate([x, t_vec], axis=0)
-#
-#        # MLP simple: Dense -> Gelu -> Dense
-#        h = nn.Dense(256)(inp)
-#        #h = nn.BatchNorm(128)(h)
-#        h = nn.gelu(h)
-#        h = nn.Dense(256)(h)
-#        #h = nn.BatchNorm(128)(h)
-#        h = nn.gelu(h)
-#        # Salida del mismo tamaño que la entrada física (N)
-#        out = nn.Dense(64)(h)
-#        return out
-    
 class SimpleVectorField(nn.Module):
     """
     Red Convolucional (CNN 1D) para capturar correlaciones espaciales.
@@ -296,29 +268,28 @@ if __name__ == "__main__":
             plt.figure(figsize=(20, 5))
 
             # Gráfica 1: Condiciones Iniciales (Lo que el modelo imagina vs Realidad)
+            curr_ic_m = jnp.mean(curr_ic,axis=1)
+            curr_ic_v = jnp.std(curr_ic,axis=1)
             plt.subplot(1, 4, 1)
-            plt.plot(x_grid, gt_ic, 'k--', label='Real IC (Secreta)', linewidth=2)
-            plt.plot(x_grid, curr_ic[0], 'r-', label='Flow Generada', linewidth=2)
-            plt.plot(x_grid, curr_ic[2], 'r-', label='Flow Generada', linewidth=2)
-            plt.plot(x_grid, curr_ic[4], 'r-', label='Flow Generada', linewidth=2)
-            plt.plot(x_grid, curr_ic[6], 'r-', label='Flow Generada', linewidth=2)
-            plt.plot(x_grid, curr_ic[7], 'r-', label='Flow Generada', linewidth=2)
-            plt.title("Condición Inicial (t=0)")
+            plt.plot(x_grid, gt_ic, 'k--', label='Real IC', linewidth=2)
+            plt.plot(x_grid, curr_ic_m, 'r-', label='Generated Flow', linewidth=2)
+            plt.fill_between(x_grid, curr_ic_m - curr_ic_v,curr_ic_m + curr_ic_v, 'r-',alpha=0.5, linewidth=2)
+            plt.title("Initial Condition (t=0)")
             plt.legend()
             plt.grid(True, alpha=0.3)
 
             plt.subplot(1, 4, 2)
-            plt.plot(x_grid, gt_ic, 'k--', label='Real IC (Secreta)', linewidth=2)
-            plt.plot(x_grid, jnp.mean(curr_ic,0), 'r-', label='Flow Generada', linewidth=2)
-            plt.title("Condición Inicial (t=0)")
+            plt.plot(x_grid, gt_ic, 'k--', label='Real IC', linewidth=2)
+            plt.plot(x_grid, jnp.mean(curr_ic,0), 'r-', label='Generated Flow', linewidth=2)
+            plt.title("Initial Condition (t=0)")
             plt.legend()
             plt.grid(True, alpha=0.3)
 
             # Gráfica 2: Estado Final (Lo que observamos)
             plt.subplot(1, 4, 3)
-            plt.plot(x_grid, gt_final[0], 'k--', label='Observación Real', linewidth=2)
-            plt.plot(x_grid, curr_final[0], 'b-', label='Simulación desde Flow', linewidth=2)
-            plt.title(f"Estado Final (t={args.dt_physics*args.steps_physics:.2f})")
+            plt.plot(x_grid, gt_final[0], 'k--', label='Observation', linewidth=2)
+            plt.plot(x_grid, curr_final[0], 'b-', label='Solution from flow', linewidth=2)
+            plt.title(f"Final state (t={args.dt_physics*args.steps_physics:.2f})")
             plt.legend()
             plt.grid(True, alpha=0.3)
 
@@ -327,8 +298,8 @@ if __name__ == "__main__":
             plt.plot(loss_history)
             plt.plot(ic_loss_history)
             plt.yscale('log')
-            plt.title(f"Convergencia del Error samples {args.n_samples}")
-            plt.xlabel("Iteraciones")
+            plt.title(f"Convergence {args.n_samples}")
+            plt.xlabel("Iterations")
             plt.ylabel("MSE Loss")
             plt.grid(True, alpha=0.3)
 
