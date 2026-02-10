@@ -268,8 +268,8 @@ if __name__ == "__main__":
             plt.figure(figsize=(20, 5))
 
             # Gráfica 1: Condiciones Iniciales (Lo que el modelo imagina vs Realidad)
-            curr_ic_m = jnp.mean(curr_ic,axis=1)
-            curr_ic_v = jnp.std(curr_ic,axis=1)
+            curr_ic_m = jnp.mean(curr_ic,axis=0)
+            curr_ic_v = jnp.std(curr_ic,axis=0)
             plt.subplot(1, 4, 1)
             plt.plot(x_grid, gt_ic, 'k--', label='Real IC', linewidth=2)
             plt.plot(x_grid, curr_ic_m, 'r-', label='Generated Flow', linewidth=2)
