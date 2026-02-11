@@ -177,8 +177,8 @@ def generate_ic(params, model, rng_key, domain, gen_noise, stochastic):
     generated_ic = sol.ys[-1]
 
     # Forzamos condiciones de borde 0 para que sea físicamente válido
-    generated_ic = generated_ic.at[0].set(0.0)
-    generated_ic = generated_ic.at[-1].set(0.0)
+    #generated_ic = generated_ic.at[0].set(0.0)
+    #generated_ic = generated_ic.at[-1].set(0.0)
 
     return generated_ic
 
