@@ -378,7 +378,7 @@ if __name__ == "__main__":
     #model = SimpleVectorField()
     model = FNO2D(modes1=12, modes2=12, width=32, depth=4)
     key = random.PRNGKey(0)
-    params = model.init(key, jnp.ones((1, 64, 64, 1)))
+    params = model.init(key, jnp.ones((8, 256, 256, 1)))
     optimizer = optax.adam(learning_rate=args.lr)
     opt_state = optimizer.init(params)
 
