@@ -148,12 +148,12 @@ def loss_fn(params, key,domain,alpha,n_samples, gt_ic, gen_noise, stochastic):
 
     #pred_ic = jax.vmap(lambda k: generate_ic(params, model, k, domain, gen_noise, stochastic))(jnp.array(keys))
     gt_final = jax.vmap(lambda ic: solve_heat_equation(gt_ic , domain, alpha))(jnp.array(keys))
-    pred_final = jax.vmap(lambda ic: solve_heat_equation(ic, domain, alpha))(generate_ic)
+    pred_final = jax.vmap(lambda ic: solve_heat_equation(ic, domain, alpha))(params)
     
 
     loss = jnp.mean((pred_final - gt_final)**2)
-    ic_loss = jnp.mean((gt_ic - pred_ic)**2)
-    return loss, (pred_ic, pred_final,ic_loss,gt_ic,gt_final)
+    ic_loss = jnp.mean((gt_ic - params)**2)
+    return loss, (params, pred_final,ic_loss,gt_ic,gt_final)
 
     ## 3. Error: Comparar con el estado final real
     #loss = jnp.mean(jax.numpy.absolute(pred_final - gt_final))
