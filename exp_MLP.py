@@ -202,7 +202,7 @@ if __name__ == "__main__":
 
     model = SimpleVectorField()
     key = random.PRNGKey(0)
-    trainable_ic = jax.random.normal(key, (N,)) * 0.1
+    trainable_ic = jax.random.normal(key, (64,)) * 0.1
     #params = model.init(key, jnp.zeros(domain.N), 0.0)
     optimizer = optax.adam(learning_rate=args.lr)
     opt_state = optimizer.init(trainable_ic)
