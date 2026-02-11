@@ -202,9 +202,10 @@ if __name__ == "__main__":
 
     model = SimpleVectorField()
     key = random.PRNGKey(0)
-    params = model.init(key, jnp.zeros(domain.N), 0.0)
+    trainable_ic = jax.random.normal(key, (N,)) * 0.1
+    #params = model.init(key, jnp.zeros(domain.N), 0.0)
     optimizer = optax.adam(learning_rate=args.lr)
-    opt_state = optimizer.init(params)
+    opt_state = optimizer.init(trainable_ic)
 
 
     # Bucle de entrenamiento
@@ -216,7 +217,7 @@ if __name__ == "__main__":
     #epochs = 5000
     for i in range(args.epochs):
         key, subkey = random.split(key)
-        params, opt_state, loss, (curr_ic, curr_final, ic_loss,gt_ic,gt_final) = train_step(params, opt_state, subkey, domain, alpha, args.n_samples, gt_ic,args.gen_noise, args.stochastic)
+        params, opt_state, loss, (curr_ic, curr_final, ic_loss,gt_ic,gt_final) = train_step(trainable_ic, opt_state, subkey, domain, alpha, args.n_samples, gt_ic,args.gen_noise, args.stochastic)
         loss_history.append(loss)
         ic_loss_history.append(ic_loss)
     

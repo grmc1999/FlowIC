@@ -103,53 +103,14 @@ def solve_heat_equation(ic, domain, alpha):
 
     
 class SimpleVectorField(nn.Module):
-    """
-    Red Convolucional (CNN 1D) para capturar correlaciones espaciales.
-    Recibe estado (N,) y tiempo t, predice velocidad (N,).
-    """
-    @nn.compact
-    def __call__(self, x, t):
-        # x shape: (N,)
-        # t shape: escalar
-        
-        N_points = x.shape[0]
-        
-        # 1. Preparar input para Conv: (Sequence, Channels) -> (N, 1)
-        x_in = x.reshape((N_points, 1))
-        
-        # 2. Canal de Tiempo: (N, 1) lleno con el valor de t
-        t_in = jnp.full((N_points, 1), t)
-        
-        # Concatenamos: Input es (N, 2) -> valor y tiempo en cada punto espacial
-        inp = jnp.concatenate([x_in, t_in], axis=-1)
+  momentum: float = 0.9
 
-        # 3. Backbone Convolucional (Respetando localidad espacial)
-        # Padding 'SAME' mantiene la dimensión N
-        h = nn.Conv(features=16, kernel_size=7, padding='SAME')(inp)
-        h = nn.tanh(h)
-
-        h = nn.Conv(features=16, kernel_size=7, padding='SAME')(h)
-        h = nn.tanh(h)
-
-        h = nn.Conv(features=64, kernel_size=7, padding='SAME')(h)
-        h = nn.tanh(h)
-
-        h = nn.Conv(features=64, kernel_size=7, padding='SAME')(h)
-        h = nn.tanh(h)
-
-        h = nn.Conv(features=16, kernel_size=7, padding='SAME')(h)
-        h = nn.tanh(h)
-
-        h = nn.Conv(features=16, kernel_size=7, padding='SAME')(h)
-        h = nn.tanh(h)
-        
-        # 4. Proyección de salida
-        # Queremos volver a 1 solo canal (velocidad)
-        h = nn.Conv(features=1, kernel_size=3, padding='SAME')(h)
-        
-        # Flatten para volver a (N,)
-        out = h.reshape((N_points,))
-        return out
+  @nn.compact
+  def __call__(self, x):
+    is_initialized = self.has_variable('batch_stats', 'mean')
+    mean = self.variable('batch_stats', 'mean', jnp.zeros, x.shape[1:])
+    bias = self.param('bias', lambda rng, shape: jnp.zeros(shape), x.shape[1:])
+    return bias
  #==========================================
  #4. Generador (Integrador ODE)
  #==========================================
