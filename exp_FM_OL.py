@@ -106,7 +106,7 @@ class SpectralConv2d(nn.Module):
     out_channels: int
     modes1: int  # Number of Fourier modes to multiply in first spatial dimension
     modes2: int  # Number of Fourier modes to multiply in second spatial dimension
-    
+     # (1, 12, 12, 32), (32, 32, 12, 12)
     def setup(self):
         scale = 1 / (self.in_channels * self.out_channels)
         # Initialize weights for real and imaginary parts
@@ -126,12 +126,12 @@ class SpectralConv2d(nn.Module):
         x_ft = jnp.fft.rfft2(x, axes=(1, 2))
         
         # Multiply relevant Fourier modes
-        out_ft = jnp.zeros((batch_size, height, width // 2 + 1, self.out_channels), dtype=jnp.complex64)
+        out_ft = jnp.zeros((batch_size, height, width // 2 + 1, self.out_channels), dtype=jnp.complex64) # [B H W OC]
         
         # Handle lower frequencies
         out_ft = out_ft.at[:, :self.modes1, :self.modes2, :].set(
-            self.complex_mult(x_ft[:, :self.modes1, :self.modes2, :], 
-                             self.weights_real, self.weights_imag)
+            self.complex_mult(x_ft[:, :self.modes1, :self.modes2, :],  # [B M1 M2 OC]
+                             self.weights_real, self.weights_imag)     # [IC OC M1 M2]
         )
         
         # Inverse Fourier transform

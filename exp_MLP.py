@@ -146,9 +146,9 @@ def loss_fn(params, key,domain,alpha,n_samples, gt_ic, gen_noise, stochastic):
     key, key_, *keys = random.split(key,num=n_samples + 2 )
     
 
-    pred_ic = jax.vmap(lambda k: generate_ic(params, model, k, domain, gen_noise, stochastic))(jnp.array(keys))
+    #pred_ic = jax.vmap(lambda k: generate_ic(params, model, k, domain, gen_noise, stochastic))(jnp.array(keys))
     gt_final = jax.vmap(lambda ic: solve_heat_equation(gt_ic , domain, alpha))(jnp.array(keys))
-    pred_final = jax.vmap(lambda ic: solve_heat_equation(ic, domain, alpha))(pred_ic)
+    pred_final = jax.vmap(lambda ic: solve_heat_equation(ic, domain, alpha))(generate_ic)
     
 
     loss = jnp.mean((pred_final - gt_final)**2)
@@ -200,7 +200,7 @@ if __name__ == "__main__":
 
     print("Objetivo: Encontrar la curva inicial que generó el estado final observado.")
 
-    model = SimpleVectorField()
+    #model = SimpleVectorField()
     key = random.PRNGKey(0)
     trainable_ic = jax.random.normal(key, (64,)) * 0.1
     #params = model.init(key, jnp.zeros(domain.N), 0.0)
