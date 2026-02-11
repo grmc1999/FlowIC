@@ -97,47 +97,6 @@ def solve_heat_equation(ic, domain, alpha):
     final_u, _ = jax.lax.scan(step_fn, ic, None, length=steps_physics)
     return final_u
 
-# ==========================================
-# 3. Flow Matching Network (MLP)
-# ==========================================
-class SimpleVectorField(nn.Module):
-    """
-    Red simple que recibe el estado actual (vector N) y el tiempo t,
-    y predice la velocidad de cambio para la EDO generativa.
-    """
-    @nn.compact
-    def __call__(self, x, t):
-        # x shape: (N,)
-        # t shape: escalar
-
-        # Concatenamos el tiempo al vector de entrada
-        t_vec = jnp.ones((1,)) * t
-        inp = jnp.concatenate([x, t_vec], axis=0)
-
-        # MLP simple: Dense -> Gelu -> Dense
-        h = nn.Dense(256)(inp)
-        #h = nn.BatchNorm(128)(h)
-        h = nn.gelu(h)
-        h = nn.Dense(256)(h)
-        #h = nn.BatchNorm(128)(h)
-        h = nn.gelu(h)
-        # Salida del mismo tamaño que la entrada física (N)
-        out = nn.Dense(64)(h)
-        return out
-
-# ==========================================
-# 4. Generador (Integrador ODE)
-# ==========================================
-
-@partial(jit, static_argnums=(4,1,5))
-def generate_ic(params, model, rng_key, domain, gen_noise, stochastic):
-
-    # Forzamos condiciones de borde 0 para que sea físicamente válido
-    generated_ic = jnp.zeros((domain.N,))
-    generated_ic = generated_ic.at[0].set(0.0)
-    generated_ic = generated_ic.at[-1].set(0.0)
-
-    return generated_ic
 
 
 @partial(jit, static_argnums=(3,4,6,7))
