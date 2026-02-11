@@ -131,27 +131,9 @@ class SimpleVectorField(nn.Module):
 
 @partial(jit, static_argnums=(4,1,5))
 def generate_ic(params, model, rng_key, domain, gen_noise, stochastic):
-    """Transfoma Ruido -> Condición Inicial Candidata"""
-    #if isinstance(stochastic,str):
-    if stochastic=="normal":
-        #z0 = random.normal(rng_key, (domain.N,)) * gen_noise # Ruido inicial
-        z0 = getattr(random,stochastic)(rng_key, (domain.N,)) * gen_noise # Ruido inicial
-    elif stochastic=="uniform":
-        z0 = random.ball(rng_key, 1, p=2, shape=(domain.N,))
-    else:
-        z0 = jnp.zeros((domain.N,))
-
-    def ode_func(t, y, args):
-        return model.apply(params, y, t)
-
-    # Solver ODE para el Flow
-    term = diffrax.ODETerm(ode_func)
-    solver = diffrax.Tsit5() # Solver Runge-Kutta rápido
-    sol = diffrax.diffeqsolve(term, solver, t0=0.0, t1=1.0, dt0=0.01, y0=z0)
-
-    generated_ic = sol.ys[-1]
 
     # Forzamos condiciones de borde 0 para que sea físicamente válido
+    generated_ic = jnp.zeros((domain.N,))
     generated_ic = generated_ic.at[0].set(0.0)
     generated_ic = generated_ic.at[-1].set(0.0)
 
