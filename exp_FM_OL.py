@@ -376,7 +376,7 @@ if __name__ == "__main__":
     print("Objetivo: Encontrar la curva inicial que generó el estado final observado.")
 
     #model = SimpleVectorField()
-    model = FNO2D(modes1=12, modes2=12, width=32, depth=4)
+    model = FNO2D(modes1=12, modes2=12, width=32, depth=4, out_channels = 64)
     key = random.PRNGKey(0)
     params = model.init(key, jnp.ones((8, 256, 256, 1)))
     optimizer = optax.adam(learning_rate=args.lr)
