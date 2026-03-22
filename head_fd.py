@@ -4,6 +4,7 @@ import firedrake as fd
 import pyadjoint
 import matplotlib.pyplot as plt
 from firedrake.ml.pytorch.fem_operator import fem_operator
+from firedrake.adjoint import Control, ReducedFunctional
 
 torch.set_default_dtype(torch.float64)
 
