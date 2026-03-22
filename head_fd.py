@@ -136,8 +136,8 @@ class HeatEquation1DOperator(nn.Module):
         self.ic_control = fd.Function(self.V, name="ic_control")
 
         # Build the native Firedrake/PyTorch operator once
-        self.rf = self._build_reduced_functional()
-        self.F_torch = fem_operator(self.rf)
+        self.F_torch = self._build_reduced_functional()
+        #self.F_torch = fem_operator(self.rf)
 
     def _solve_annotated(self, u0: fd.Function) -> fd.Function:
         """
@@ -169,11 +169,14 @@ class HeatEquation1DOperator(nn.Module):
         Build a function-valued reduced functional:
             IC -> final state
         """
+        fd.adjoint.continue_annotation()
         uT = self._solve_annotated(self.ic_control)
-        return pyadjoint.ReducedFunctional(
+        G = pyadjoint.ReducedFunctional(
             uT,
             pyadjoint.Control(self.ic_control)
         )
+        fd.adjoint.stop_annotating()
+        return fd.ml.pytorch.fem_operator(G)
 
     def forward(self, ic_tensor: torch.Tensor) -> torch.Tensor:
         """
