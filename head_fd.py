@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from firedrake.ml.pytorch.fem_operator import fem_operator
 from firedrake.adjoint import Control, ReducedFunctional
-
+import os
 torch.set_default_dtype(torch.float64)
 
 
@@ -247,11 +247,13 @@ def plot_1D(
     pred_ic,
     pred_final,
     loss_history,
+    loss_ic,
     lr=1e-4,
     epoch=0,
     n_samples=8,
     dt_physics=1e-4,
     steps_physics=0,
+    exp_dir = ""
 ):
     pred_ic_mean = torch.mean(pred_ic, dim=0).detach().cpu().numpy()
     pred_ic_std = torch.std(pred_ic, dim=0).detach().cpu().numpy()
@@ -290,15 +292,17 @@ def plot_1D(
     plt.grid(True, alpha=0.3)
 
     plt.subplot(1, 3, 3)
-    plt.plot(loss_history)
+    plt.plot(loss_history, color="b", label = "final state error")
+    plt.plot(loss_ic, color="r", label = "initial state error")
     plt.yscale("log")
     plt.title("Error convergence")
     plt.xlabel("Iterations")
     plt.ylabel("MAE Loss")
+    plt.legend()
     plt.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig(f"exp_epochs_{epoch}_samples_{n_samples}_lr_{lr}_generative_noise.png")
+    plt.savefig(f"{exp_dir}/exp_epochs_{epoch}_samples_{n_samples}_lr_{lr}_generative_noise.png")
     plt.show()
 
 
@@ -314,8 +318,11 @@ if __name__ == "__main__":
     parser.add_argument("--gen_noise", type=float, default=0.5)
     parser.add_argument("--stochastic", type=str, default="constant")
     parser.add_argument("--device", type=str, default="cpu")
+    parser.add_argument("--exp_dir", type=str, default="heat")
 
     args = parser.parse_args()
+
+    os.makedirs(args.exp_dir, exist_ok=True)
 
     device = args.device
 
@@ -370,6 +377,8 @@ if __name__ == "__main__":
         loss.backward()
         optimizer.step()
 
+        loss_ic = torch.mean(torch.abs(pred_ic - gt_ic.unsqueeze(0)))
+
         loss_history.append(loss.item())
 
         if epoch % 4 == 0:
@@ -386,9 +395,11 @@ if __name__ == "__main__":
                 pred_ic=pred_ic,
                 pred_final=pred_final,
                 loss_history=loss_history,
+                loss_ic = loss_ic,
                 lr=args.lr,
                 epoch=epoch,
                 n_samples=args.n_samples,
                 dt_physics=args.dt_physics,
                 steps_physics=args.steps_physics,
+                exp_dir = args.exp_dir
             )
