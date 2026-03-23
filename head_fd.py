@@ -242,7 +242,7 @@ class HeatEquation1DOperator(nn.Module):
 
         return u_np1.copy(deepcopy=True)
     
-def plot_1D(gt_ic_cpu, gt_final_cpu, x_grid_cpu, pred_ic, pred_final, lr = 1e-4, epoch = 0, n_samples = 8):
+def plot_1D(gt_ic_cpu, gt_final_cpu, x_grid_cpu, pred_ic, pred_final, lr = 1e-4, epoch = 0, n_samples = 8, dt_physics = 1e-4,steps_physics = 0):
 
     plt.figure(figsize=(15, 5))
     plt.subplot(1, 3, 1)
@@ -363,5 +363,7 @@ if __name__ == "__main__":
                 pred_final,
                 lr = args.lr,
                 epoch = epoch,
-                n_samples = args.n_samples
+                n_samples = args.n_samples,
+                dt_physics = args.dt_physics,
+                steps_physics = args.steps_physics
             )
