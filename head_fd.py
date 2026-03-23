@@ -11,9 +11,6 @@ import argparse
 torch.set_default_dtype(torch.float64)
 
 
-# =========================================================
-# 1. Utility: boundary enforcement
-# =========================================================
 def enforce_zero_dirichlet(u: torch.Tensor) -> torch.Tensor:
     """
     Enforce u[..., 0] = u[..., -1] = 0.
@@ -25,9 +22,6 @@ def enforce_zero_dirichlet(u: torch.Tensor) -> torch.Tensor:
     return out
 
 
-# =========================================================
-# 2. PyTorch generator: vector field + RK4 flow
-# =========================================================
 class SimpleVectorField(nn.Module):
     """
     Same idea as the JAX model:
@@ -98,9 +92,6 @@ def generate_ic(model: nn.Module,
     return ic
 
 
-# =========================================================
-# 3. Firedrake heat equation (forward solver)
-# =========================================================
 class HeatEquation1DOperator(nn.Module):
     """
     PyTorch module wrapping a Firedrake heat-equation solve through
@@ -198,81 +189,38 @@ class HeatEquation1DOperator(nn.Module):
             out = out.squeeze(0)
 
         return out
-    def tensor_to_function(self, x: torch.Tensor, name: str = "state") -> fd.Function:
-        """
-        Serial helper:
-        assumes CG1 nodal ordering matches the line-grid ordering.
-        Good for this first 1D prototype.
-        """
-        x_cpu = x.detach().cpu().double().contiguous()
-        f = fd.Function(self.V, name=name)
-        f.dat.data[:] = x_cpu.numpy()
-        f.dat.data[0] = 0.0
-        f.dat.data[-1] = 0.0
-        return f
-
-    def function_to_tensor(self,
-                           f: fd.Function,
-                           device=None,
-                           dtype=torch.float64) -> torch.Tensor:
-        arr = f.dat.data_ro.copy()
-        out = torch.from_numpy(arr).to(dtype=dtype)
-        if device is not None:
-            out = out.to(device)
-        return out
-
-    def solve_from_function(self, u0: fd.Function) -> fd.Function:
-        u_n = fd.Function(self.V, name="u_n")
-        u_n.assign(u0)
-
-        u_np1 = fd.Function(self.V, name="u_np1")
-
-        for _ in range(self.num_steps):
-            L_form = (u_n * self.v_test) * fd.dx
-            fd.solve(
-                self.a_form == L_form,
-                u_np1,
-                bcs=self.bc,
-                solver_parameters={
-                    "ksp_type": "cg",
-                    "pc_type": "sor",
-                },
-            )
-            u_n.assign(u_np1)
-
-        return u_np1.copy(deepcopy=True)
     
 def plot_1D(gt_ic_cpu, gt_final_cpu, x_grid_cpu, pred_ic, pred_final, lr = 1e-4, epoch = 0, n_samples = 8, dt_physics = 1e-4,steps_physics = 0):
 
     plt.figure(figsize=(15, 5))
     plt.subplot(1, 3, 1)
-    plt.plot(x_grid_cpu, gt_ic_cpu, "k--", linewidth=2, label="Real IC (Secreta)")
-    plt.plot(x_grid_cpu, torch.mean(pred_ic, axis = 0).cpu().detach().numpy(), "r-", linewidth=2, label="Flow Generada")
+    plt.plot(x_grid_cpu, gt_ic_cpu, "k--", linewidth=2, label="Real IC")
+    plt.plot(x_grid_cpu, torch.mean(pred_ic, axis = 0).cpu().detach().numpy(), "r-", linewidth=2, label="Generated Flow")
     plt.fill_between(x_grid,
                      torch.mean(pred_ic, axis = 0).cpu().detach().numpy() + torch.std(pred_ic, axis = 0).cpu().detach().numpy(),
                      torch.mean(pred_ic, axis = 0).cpu().detach().numpy() - torch.std(pred_ic, axis = 0).cpu().detach().numpy(),
                      color = "r",
                      alpha=0.5, linewidth=2)
     
-    plt.title("Condición Inicial (t=0)")
+    plt.title("Initial condition (t=0)")
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.subplot(1, 3, 2)
-    plt.plot(x_grid_cpu, gt_final_cpu, "k--", linewidth=2, label="Observación Real")
+    plt.plot(x_grid_cpu, gt_final_cpu, "k--", linewidth=2, label="Ground Truth")
     plt.fill_between(x_grid,
                      torch.mean(pred_final, axis = 0).cpu().detach().numpy() + torch.std(pred_final, axis = 0).cpu().detach().numpy(),
                      torch.mean(pred_final, axis = 0).cpu().detach().numpy() - torch.std(pred_final, axis = 0).cpu().detach().numpy(),
                      color = "r",
                      alpha=0.5, linewidth=2)
     
-    plt.title(f"Estado Final (t={dt_physics * steps_physics:.2f})")
+    plt.title(f"Final state (t={dt_physics * steps_physics:.2f})")
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.subplot(1, 3, 3)
     plt.plot(loss_history)
     plt.yscale("log")
-    plt.title("Convergencia del Error")
-    plt.xlabel("Iteraciones")
+    plt.title("Error convergence")
+    plt.xlabel("Iterations")
     plt.ylabel("MAE Loss")
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
@@ -299,8 +247,6 @@ if __name__ == "__main__":
     N = 64
     L = 1.0
     alpha = 0.05
-    #dt_physics = 0.001
-    #steps_physics = 200
     
     solver = HeatEquation1DOperator(
         n_points=N,
