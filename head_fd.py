@@ -285,8 +285,8 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, required=True, default=1e-4)
     parser.add_argument('--dt_physics', type=float, required=True, default=0.001)
     parser.add_argument('--steps_physics', type=int, default=200)
-    parser.add_argument('--N', type=int, default='outputs', default = 64)
-    parser.add_argument('--epochs', type=int, default='outputs')
+    parser.add_argument('--N', type=int, default = 64)
+    parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--L', type=float, default=0)
     parser.add_argument('--gen_noise', type=float, default=0.5)
     parser.add_argument('--stochastic', type=str, default="constant")
@@ -354,7 +354,7 @@ if __name__ == "__main__":
             gt_ic_cpu = gt_ic.detach().cpu().numpy()
             gt_final_cpu = gt_final.detach().cpu().numpy()
             x_grid_cpu = x_grid.detach().cpu().numpy()
-    
+
             plot_1D(
                 gt_ic_cpu,
                 gt_final_cpu,
