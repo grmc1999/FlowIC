@@ -285,7 +285,7 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, required=True, default=1e-4)
     parser.add_argument('--dt_physics', type=float, required=True, default=0.001)
     parser.add_argument('--steps_physics', type=int, default=200)
-    parser.add_argument('--N', type=int, default='outputs')
+    parser.add_argument('--N', type=int, default='outputs', default = 64)
     parser.add_argument('--epochs', type=int, default='outputs')
     parser.add_argument('--L', type=float, default=0)
     parser.add_argument('--gen_noise', type=float, default=0.5)
@@ -347,21 +347,21 @@ if __name__ == "__main__":
     
         loss_history.append(loss.item())
     
-        if epoch % 10 == 0:
+        if epoch % 4 == 0:
             print(f"Iteración {epoch}: Loss = {loss.item():.6e}")
     
 
-        gt_ic_cpu = gt_ic.detach().cpu().numpy()
-        gt_final_cpu = gt_final.detach().cpu().numpy()
-        x_grid_cpu = x_grid.detach().cpu().numpy()
-
-        plot_1D(
-            gt_ic_cpu,
-            gt_final_cpu,
-            x_grid_cpu,
-            pred_ic,
-            pred_final,
-            lr = args.lr,
-            epoch = epoch,
-            n_samples = args.n_samples
-        )
+            gt_ic_cpu = gt_ic.detach().cpu().numpy()
+            gt_final_cpu = gt_final.detach().cpu().numpy()
+            x_grid_cpu = x_grid.detach().cpu().numpy()
+    
+            plot_1D(
+                gt_ic_cpu,
+                gt_final_cpu,
+                x_grid_cpu,
+                pred_ic,
+                pred_final,
+                lr = args.lr,
+                epoch = epoch,
+                n_samples = args.n_samples
+            )
