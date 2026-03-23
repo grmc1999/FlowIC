@@ -295,7 +295,7 @@ for epoch in tqdm(range(epochs)):
 
     loss_history.append(loss.item())
 
-    if epoch % 100 == 0:
+    if epoch % 10 == 0:
         print(f"Iteración {epoch}: Loss = {loss.item():.6e}")
 
 
