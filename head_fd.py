@@ -281,9 +281,9 @@ def plot_1D(gt_ic_cpu, gt_final_cpu, x_grid_cpu, pred_ic, pred_final, lr = 1e-4,
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Exps')
-    parser.add_argument('--n_samples', type=int, required=True, default=8)
-    parser.add_argument('--lr', type=float, required=True, default=1e-4)
-    parser.add_argument('--dt_physics', type=float, required=True, default=0.001)
+    parser.add_argument('--n_samples', type=int, default=8)
+    parser.add_argument('--lr', type=float, default=1e-4)
+    parser.add_argument('--dt_physics', type=float, default=0.001)
     parser.add_argument('--steps_physics', type=int, default=200)
     parser.add_argument('--N', type=int, default = 64)
     parser.add_argument('--epochs', type=int, default=100)
