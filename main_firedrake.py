@@ -273,6 +273,7 @@ def plot_1D(
     n_samples=8,
     dt_physics=1e-4,
     steps_physics=0,
+    exp_dir = ""
 ):
     pred_ic_mean = torch.mean(pred_ic, dim=0).detach().cpu().numpy()
     pred_ic_std = torch.std(pred_ic, dim=0).detach().cpu().numpy()
@@ -321,7 +322,7 @@ def plot_1D(
     plt.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig(f"exp_epochs_{epoch}_samples_{n_samples}_lr_{lr}_generative_noise.png")
+    plt.savefig(f"{exp_dir}/exp_epochs_{epoch}_samples_{n_samples}_lr_{lr}_generative_noise.png")
     plt.show()
 
 
@@ -420,5 +421,5 @@ if __name__ == "__main__":
                 n_samples=args.n_samples,
                 dt_physics=args.dt_physics,
                 steps_physics=args.steps_physics,
-                args.exp_dir
+                exp_dir = args.exp_dir
             )
