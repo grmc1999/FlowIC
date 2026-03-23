@@ -5,6 +5,7 @@ import pyadjoint
 import matplotlib.pyplot as plt
 from firedrake.ml.pytorch.fem_operator import fem_operator
 from firedrake.adjoint import Control, ReducedFunctional
+from tqdm import tqdm
 
 torch.set_default_dtype(torch.float64)
 
@@ -274,7 +275,7 @@ rk_steps = 20
 
 loss_history = []
 
-for epoch in range(epochs):
+for epoch in tqdm(range(epochs)):
     optimizer.zero_grad()
 
     pred_ic = generate_ic(
@@ -309,14 +310,14 @@ plt.figure(figsize=(15, 5))
 
 plt.subplot(1, 3, 1)
 plt.plot(x_grid_cpu, gt_ic_cpu, "k--", linewidth=2, label="Real IC (Secreta)")
-plt.plot(x_grid_cpu, best_ic, "r-", linewidth=2, label="Flow Generada")
+plt.plot(x_grid_cpu, torch.mean(pred_ic, axis = 0), "r-", linewidth=2, label="Flow Generada")
 plt.title("Condición Inicial (t=0)")
 plt.legend()
 plt.grid(True, alpha=0.3)
 
 plt.subplot(1, 3, 2)
 plt.plot(x_grid_cpu, gt_final_cpu, "k--", linewidth=2, label="Observación Real")
-plt.plot(x_grid_cpu, best_final, "b-", linewidth=2, label="Simulación desde Flow")
+plt.plot(x_grid_cpu, torch.mean(pred_final,axis = 0), "b-", linewidth=2, label="Simulación desde Flow")
 plt.title(f"Estado Final (t={dt_physics * steps_physics:.2f})")
 plt.legend()
 plt.grid(True, alpha=0.3)
