@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from firedrake.ml.pytorch.fem_operator import fem_operator
 from firedrake.adjoint import Control, ReducedFunctional
 from tqdm import tqdm
+import argparse
 
 torch.set_default_dtype(torch.float64)
 
@@ -240,95 +241,127 @@ class HeatEquation1DOperator(nn.Module):
             u_n.assign(u_np1)
 
         return u_np1.copy(deepcopy=True)
+    
+def plot_1D(gt_ic_cpu, gt_final_cpu, x_grid_cpu, pred_ic, pred_final, lr = 1e-4, epoch = 0, n_samples = 8):
 
+    plt.figure(figsize=(15, 5))
+    plt.subplot(1, 3, 1)
+    plt.plot(x_grid_cpu, gt_ic_cpu, "k--", linewidth=2, label="Real IC (Secreta)")
+    plt.plot(x_grid_cpu, torch.mean(pred_ic, axis = 0).cpu().detach().numpy(), "r-", linewidth=2, label="Flow Generada")
+    plt.fill_between(x_grid,
+                     torch.mean(pred_ic, axis = 0).cpu().detach().numpy() + torch.std(pred_ic, axis = 0).cpu().detach().numpy(),
+                     torch.mean(pred_ic, axis = 0).cpu().detach().numpy() - torch.std(pred_ic, axis = 0).cpu().detach().numpy(),
+                     color = "r",
+                     alpha=0.5, linewidth=2)
+    
+    plt.title("Condición Inicial (t=0)")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.subplot(1, 3, 2)
+    plt.plot(x_grid_cpu, gt_final_cpu, "k--", linewidth=2, label="Observación Real")
+    plt.fill_between(x_grid,
+                     torch.mean(pred_final, axis = 0).cpu().detach().numpy() + torch.std(pred_final, axis = 0).cpu().detach().numpy(),
+                     torch.mean(pred_final, axis = 0).cpu().detach().numpy() - torch.std(pred_final, axis = 0).cpu().detach().numpy(),
+                     color = "r",
+                     alpha=0.5, linewidth=2)
+    
+    plt.title(f"Estado Final (t={dt_physics * steps_physics:.2f})")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.subplot(1, 3, 3)
+    plt.plot(loss_history)
+    plt.yscale("log")
+    plt.title("Convergencia del Error")
+    plt.xlabel("Iteraciones")
+    plt.ylabel("MAE Loss")
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(f'exp_epochs_{epoch}_samples_{n_samples}_lr_{lr}_generative_noise.png')
+    plt.show()
 
-device = "cpu"
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Exps')
+    parser.add_argument('--n_samples', type=int, required=True, default=8)
+    parser.add_argument('--lr', type=float, required=True, default=1e-4)
+    parser.add_argument('--dt_physics', type=float, required=True, default=0.001)
+    parser.add_argument('--steps_physics', type=int, default=200)
+    parser.add_argument('--N', type=int, default='outputs')
+    parser.add_argument('--epochs', type=int, default='outputs')
+    parser.add_argument('--L', type=float, default=0)
+    parser.add_argument('--gen_noise', type=float, default=0.5)
+    parser.add_argument('--stochastic', type=str, default="constant")
+    parser.add_argument('--device', type=str, default="cpu")
 
-N = 64
-L = 1.0
-alpha = 0.05
-dt_physics = 0.001
-steps_physics = 200
+    args = parser.parse_args()
 
-solver = HeatEquation1DOperator(
-    n_points=N,
-    length=L,
-    alpha=alpha,
-    dt=dt_physics,
-    num_steps=steps_physics,
-).to(device)
-
-x_grid = torch.linspace(0.0, L, N, device=device)
-
-gt_ic = torch.exp(-100.0 * (x_grid - 0.3) ** 2) + 0.5 * torch.exp(-100.0 * (x_grid - 0.7) ** 2)
-gt_ic = enforce_zero_dirichlet(gt_ic)
-
-with torch.no_grad():
-    gt_final = solver(gt_ic)
-
-model = SimpleVectorField(n_points=N, hidden_dim=256).to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-
-epochs = 10
-batch_size = 8
-rk_steps = 20
-
-loss_history = []
-
-for epoch in tqdm(range(epochs)):
-    optimizer.zero_grad()
-
-    pred_ic = generate_ic(
-        model=model,
-        batch_size=batch_size,
+    device = args.device
+    
+    N = 64
+    L = 1.0
+    alpha = 0.05
+    #dt_physics = 0.001
+    #steps_physics = 200
+    
+    solver = HeatEquation1DOperator(
         n_points=N,
-        noise_scale=0.5,
-        rk_steps=rk_steps,
-        device=device,
-    )
+        length=L,
+        alpha=alpha,
+        dt=args.dt_physics,
+        num_steps=args.steps_physics,
+    ).to(device)
+    
+    x_grid = torch.linspace(0.0, L, N, device=device)
+    
+    gt_ic = torch.exp(-100.0 * (x_grid - 0.3) ** 2) + 0.5 * torch.exp(-100.0 * (x_grid - 0.7) ** 2)
+    gt_ic = enforce_zero_dirichlet(gt_ic)
+    
+    with torch.no_grad():
+        gt_final = solver(gt_ic)
+    
+    model = SimpleVectorField(n_points=N, hidden_dim=256).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    
+    epochs = 10
+    batch_size = args.n_samples
+    rk_steps = 20
+    
+    loss_history = []
+    
+    for epoch in tqdm(range(epochs)):
+        optimizer.zero_grad()
+    
+        pred_ic = generate_ic(
+            model=model,
+            batch_size=batch_size,
+            n_points=N,
+            noise_scale=0.5,
+            rk_steps=rk_steps,
+            device=device,
+        )
+    
+        pred_final = torch.stack([solver(pred_ic[k]) for k in range(batch_size)], dim=0)
+    
+        loss = torch.mean(torch.abs(pred_final - gt_final.unsqueeze(0)))
+        loss.backward()
+        optimizer.step()
+    
+        loss_history.append(loss.item())
+    
+        if epoch % 10 == 0:
+            print(f"Iteración {epoch}: Loss = {loss.item():.6e}")
+    
 
-    pred_final = torch.stack([solver(pred_ic[k]) for k in range(batch_size)], dim=0)
+        gt_ic_cpu = gt_ic.detach().cpu().numpy()
+        gt_final_cpu = gt_final.detach().cpu().numpy()
+        x_grid_cpu = x_grid.detach().cpu().numpy()
 
-    loss = torch.mean(torch.abs(pred_final - gt_final.unsqueeze(0)))
-    loss.backward()
-    optimizer.step()
-
-    loss_history.append(loss.item())
-
-    if epoch % 10 == 0:
-        print(f"Iteración {epoch}: Loss = {loss.item():.6e}")
-
-
-# =========================================================
-# 7. Visualization
-# =========================================================
-gt_ic_cpu = gt_ic.detach().cpu().numpy()
-gt_final_cpu = gt_final.detach().cpu().numpy()
-x_grid_cpu = x_grid.detach().cpu().numpy()
-
-plt.figure(figsize=(15, 5))
-
-plt.subplot(1, 3, 1)
-plt.plot(x_grid_cpu, gt_ic_cpu, "k--", linewidth=2, label="Real IC (Secreta)")
-plt.plot(x_grid_cpu, torch.mean(pred_ic, axis = 0).cpu().detach().numpy(), "r-", linewidth=2, label="Flow Generada")
-plt.title("Condición Inicial (t=0)")
-plt.legend()
-plt.grid(True, alpha=0.3)
-
-plt.subplot(1, 3, 2)
-plt.plot(x_grid_cpu, gt_final_cpu, "k--", linewidth=2, label="Observación Real")
-plt.plot(x_grid_cpu, torch.mean(pred_final,axis = 0).cpu().detach().numpy(), "b-", linewidth=2, label="Simulación desde Flow")
-plt.title(f"Estado Final (t={dt_physics * steps_physics:.2f})")
-plt.legend()
-plt.grid(True, alpha=0.3)
-
-plt.subplot(1, 3, 3)
-plt.plot(loss_history)
-plt.yscale("log")
-plt.title("Convergencia del Error")
-plt.xlabel("Iteraciones")
-plt.ylabel("MAE Loss")
-plt.grid(True, alpha=0.3)
-
-plt.tight_layout()
-plt.show()
+        plot_1D(
+            gt_ic_cpu,
+            gt_final_cpu,
+            x_grid_cpu,
+            pred_ic,
+            pred_final,
+            lr = args.lr,
+            epoch = epoch,
+            n_samples = args.n_samples
+        )
