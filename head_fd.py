@@ -355,6 +355,7 @@ if __name__ == "__main__":
     batch_size = args.n_samples
     rk_steps = 20
     loss_history = []
+    loss_ic_history = []
 
     for epoch in tqdm(range(args.epochs)):
         optimizer.zero_grad()
@@ -377,8 +378,9 @@ if __name__ == "__main__":
         loss.backward()
         optimizer.step()
 
-        loss_ic = torch.mean(torch.abs(pred_ic - gt_ic.unsqueeze(0)))
+        loss_ic = torch.mean(torch.abs(pred_ic - gt_ic.unsqueeze(0))).detach().cpu().numpy()
 
+        loss_ic_history.append(loss_ic.item())
         loss_history.append(loss.item())
 
         if epoch % 4 == 0:
