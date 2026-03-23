@@ -269,7 +269,7 @@ with torch.no_grad():
 model = SimpleVectorField(n_points=N, hidden_dim=256).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
-epochs = 2000
+epochs = 10
 batch_size = 8
 rk_steps = 20
 
