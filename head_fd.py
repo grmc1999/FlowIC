@@ -302,22 +302,22 @@ for epoch in tqdm(range(epochs)):
 # =========================================================
 # 7. Visualization
 # =========================================================
-gt_ic_cpu = gt_ic.detach().cpu()
-gt_final_cpu = gt_final.detach().cpu()
-x_grid_cpu = x_grid.detach().cpu()
+gt_ic_cpu = gt_ic.detach().cpu().numpy()
+gt_final_cpu = gt_final.detach().cpu().numpy()
+x_grid_cpu = x_grid.detach().cpu().numpy()
 
 plt.figure(figsize=(15, 5))
 
 plt.subplot(1, 3, 1)
 plt.plot(x_grid_cpu, gt_ic_cpu, "k--", linewidth=2, label="Real IC (Secreta)")
-plt.plot(x_grid_cpu, torch.mean(pred_ic, axis = 0), "r-", linewidth=2, label="Flow Generada")
+plt.plot(x_grid_cpu, torch.mean(pred_ic, axis = 0).cpu().detach().numpy(), "r-", linewidth=2, label="Flow Generada")
 plt.title("Condición Inicial (t=0)")
 plt.legend()
 plt.grid(True, alpha=0.3)
 
 plt.subplot(1, 3, 2)
 plt.plot(x_grid_cpu, gt_final_cpu, "k--", linewidth=2, label="Observación Real")
-plt.plot(x_grid_cpu, torch.mean(pred_final,axis = 0), "b-", linewidth=2, label="Simulación desde Flow")
+plt.plot(x_grid_cpu, torch.mean(pred_final,axis = 0).cpu().detach().numpy(), "b-", linewidth=2, label="Simulación desde Flow")
 plt.title(f"Estado Final (t={dt_physics * steps_physics:.2f})")
 plt.legend()
 plt.grid(True, alpha=0.3)
