@@ -321,13 +321,13 @@ if __name__ == "__main__":
     model = SimpleVectorField(n_points=N, hidden_dim=256).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     
-    epochs = 10
+    #epochs = 10
     batch_size = args.n_samples
     rk_steps = 20
     
     loss_history = []
     
-    for epoch in tqdm(range(epochs)):
+    for epoch in tqdm(range(args.epochs)):
         optimizer.zero_grad()
     
         pred_ic = generate_ic(
