@@ -294,6 +294,7 @@ if __name__ == "__main__":
     parser.add_argument("--gen_noise", type=float, default=0.5)
     parser.add_argument("--wave_speed", type=float, default=1.0)
     parser.add_argument("--device", type=str, default="cpu")
+    parser.add_argument("--exp_dir", type=str, default="wave")
     args = parser.parse_args()
     
     os.makedirs(args.exp_dir, exist_ok=True)
@@ -373,4 +374,5 @@ if __name__ == "__main__":
                 n_samples=args.n_samples,
                 dt_physics=args.dt_physics,
                 steps_physics=args.steps_physics,
+                exp_dir = args.exp_dir
             )
