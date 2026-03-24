@@ -229,7 +229,7 @@ def plot_1D(
     n_samples=8,
     dt_physics=1e-4,
     steps_physics=0,
-    exp_dir = ""
+    exp_dir = "wave"
 ):
     pred_ic_mean = torch.mean(pred_ic, dim=0).detach().cpu().numpy()
     pred_ic_std = torch.std(pred_ic, dim=0).detach().cpu().numpy()
