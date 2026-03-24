@@ -365,6 +365,7 @@ if __name__ == "__main__":
                 pred_ic=pred_ic,
                 pred_final=pred_final,
                 loss_history=loss_history,
+                loss_ic = loss_ic_history,
                 lr=args.lr,
                 epoch=epoch,
                 n_samples=args.n_samples,
