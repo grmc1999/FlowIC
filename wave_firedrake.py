@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from SolverBase import BaseFiredrakeOperator
 import argparse
 import os
 import torch
@@ -97,167 +98,122 @@ def generate_ic(
     return ic
 
 
-class BaseFiredrakeOperator(nn.Module, ABC):
+
+
+
+class WaveEquation1DOperator(BaseFiredrakeOperator):
     """
-    Generic PyTorch wrapper for a Firedrake operator using:
-        pyadjoint.ReducedFunctional + firedrake.ml.pytorch.fem_operator
+    1D wave equation:
+        u_tt - c^2 u_xx = 0
+    on [0, L] with homogeneous Dirichlet BCs.
 
-    Subclasses only need to define:
-    - mesh construction
-    - function space construction
-    - problem setup
-    - annotated solve
-    - optional input preprocessing
-    """
-    def __init__(self):
-        super().__init__()
+    Design choice for compatibility with BaseFiredrakeOperator:
+    - control: initial displacement u(x,0)
+    - fixed:   initial velocity u_t(x,0) = 0
+    - output:  final displacement u(x,T)
 
-        self.mesh = self.build_mesh()
-        self.V = self.build_function_space(self.mesh)
-
-        self.setup_problem()
-
-        self.control = self.build_control()
-        self.rf = self.build_reduced_functional()
-        self.F_torch = fem_operator(self.rf)
-
-    @abstractmethod
-    def build_mesh(self):
-        pass
-
-    def build_function_space(self, mesh):
-        return fd.FunctionSpace(mesh, "CG", 1)
-
-    @abstractmethod
-    def setup_problem(self):
-        pass
-
-    def build_control(self):
-        return fd.Function(self.V, name="control")
-
-    def preprocess_input(self, x: torch.Tensor) -> torch.Tensor:
-        return x
-
-    @abstractmethod
-    def solve_annotated(self, control: fd.Function) -> fd.Function:
-        pass
-
-    def get_dof_coordinates(self):
-        #coords = self.V.tabulate_dof_coordinates()
-        coords = fd.Function(fd.VectorFunctionSpace(solver.V.mesh(),"DG",0)).interpolate(fd.SpatialCoordinate(solver.V.mesh())).dat.data # [n_points]
-        gdim = self.mesh.geometric_dimension()
-        return coords.reshape((-1, gdim))[:, 0]
-    
-    def build_reduced_functional(self):
-        fd.adjoint.continue_annotation()
-        try:
-            output = self.solve_annotated(self.control)
-            rf = ReducedFunctional(output, Control(self.control))
-        finally:
-            fd.adjoint.stop_annotating()
-        return rf
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        squeeze_output = False
-
-        if x.ndim == 1:
-            x = x.unsqueeze(0)
-            squeeze_output = True
-
-        x = self.preprocess_input(x)
-        y = self.F_torch(x)
-
-        if squeeze_output and y.ndim == 2 and y.shape[0] == 1:
-            y = y.squeeze(0)
-
-        return y
-
-
-class LinearAdvection1DOperator(BaseFiredrakeOperator):
-    """
-    1D periodic linear advection:
-        u_t + c u_x = 0
-
-    Discretization:
-    - Periodic interval mesh
-    - DG(0) space
-    - implicit Euler in time
-    - upwind numerical flux on interior facets
+    Time discretization:
+    - central difference in time
+    - CG in space
+    - each step solves a mass-matrix system
     """
     def __init__(
         self,
-        n_cells: int = 64,
+        n_points: int = 64,
         length: float = 1.0,
-        velocity: float = 1.0,
+        wave_speed: float = 1.0,
         dt: float = 1e-3,
         num_steps: int = 200,
+        degree: int = 1,
     ):
-        self.n_cells = n_cells
+        self.n_points = n_points
         self.length = length
-        self.velocity_value = velocity
+        self.wave_speed_value = wave_speed
         self.dt_value = dt
         self.num_steps = num_steps
+        self.degree = degree
         super().__init__()
 
     def build_mesh(self):
-        return fd.PeriodicIntervalMesh(self.n_cells, self.length)
+        return fd.IntervalMesh(self.n_points - 1, self.length)
 
     def build_function_space(self, mesh):
-        # DG0 keeps one DOF per cell, which makes plotting and generator sizing simple
-        return fd.FunctionSpace(mesh, "DG", 0)
+        return fd.FunctionSpace(mesh, "CG", self.degree)
 
     def setup_problem(self):
-        self.c = fd.Constant(self.velocity_value)
+        self.c = fd.Constant(self.wave_speed_value)
         self.dt = fd.Constant(self.dt_value)
 
         self.u_trial = fd.TrialFunction(self.V)
         self.v_test = fd.TestFunction(self.V)
 
-        self.n = fd.FacetNormal(self.mesh)
+        self.bc = fd.DirichletBC(self.V, fd.Constant(0.0), "on_boundary")
 
-        # Normal flux on the '+' side of each interior facet
-        self.cn = self.c * self.n[0]("+") if callable(getattr(self.n[0], "__call__", None)) else self.c * self.n[0]
-        self.flux_n = self.c * self.n[0]("+")  # scalar in 1D
-
-        # Upwind state selected from the sign of c·n
-        self.u_up = fd.conditional(
-            fd.gt(self.flux_n, 0.0),
-            self.u_trial("+"),
-            self.u_trial("-"),
-        )
-
-        # DG implicit Euler form:
-        # (u^{n+1}, v) + dt * < (c n)_+ * u_up, jump(v) > = (u^n, v)
-        self.a_form = (
-            self.u_trial * self.v_test * fd.dx
-            + self.dt * self.flux_n * self.u_up * fd.jump(self.v_test) * fd.dS
-        )
+        # Mass matrix on the left-hand side
+        self.mass_form = (self.u_trial * self.v_test) * fd.dx
 
     def preprocess_input(self, x: torch.Tensor) -> torch.Tensor:
-        # periodic problem: no Dirichlet enforcement
-        return x
+        return enforce_zero_dirichlet(x)
 
     def solve_annotated(self, u0: fd.Function) -> fd.Function:
-        u_n = fd.Function(self.V, name="u_n")
-        u_n.assign(u0)
+        """
+        Uses:
+          u^1 from Taylor expansion with zero initial velocity
+          u^{n+1} = 2u^n - u^{n-1} + dt^2 c^2 u_xx^n
+        written in weak form.
 
-        u_np1 = fd.Function(self.V, name="u_np1")
+        Weak forms:
+          (u^1, v) = (u^0, v) - 0.5 dt^2 c^2 (grad u^0, grad v)
+          (u^{n+1}, v) = (2u^n - u^{n-1}, v) - dt^2 c^2 (grad u^n, grad v)
+        """
+        u_prev = fd.Function(self.V, name="u_prev")
+        u_prev.assign(u0)
 
-        for _ in range(self.num_steps):
-            L_form = u_n * self.v_test * fd.dx
+        if self.num_steps == 0:
+            return u_prev.copy(deepcopy=True)
+
+        # First step: zero initial velocity
+        u_curr = fd.Function(self.V, name="u_curr")
+        L_init = (
+            u_prev * self.v_test
+            - 0.5 * (self.dt ** 2) * (self.c ** 2) * fd.dot(fd.grad(u_prev), fd.grad(self.v_test))
+        ) * fd.dx
+
+        fd.solve(
+            self.mass_form == L_init,
+            u_curr,
+            bcs=self.bc,
+            solver_parameters={
+                "ksp_type": "cg",
+                "pc_type": "sor",
+            },
+        )
+
+        if self.num_steps == 1:
+            return u_curr.copy(deepcopy=True)
+
+        u_next = fd.Function(self.V, name="u_next")
+
+        for _ in range(1, self.num_steps):
+            L_step = (
+                (2.0 * u_curr - u_prev) * self.v_test
+                - (self.dt ** 2) * (self.c ** 2) * fd.dot(fd.grad(u_curr), fd.grad(self.v_test))
+            ) * fd.dx
 
             fd.solve(
-                self.a_form == L_form,
-                u_np1,
+                self.mass_form == L_step,
+                u_next,
+                bcs=self.bc,
                 solver_parameters={
-                    "ksp_type": "gmres",
-                    "pc_type": "bjacobi",
-                    "sub_pc_type": "ilu",
+                    "ksp_type": "cg",
+                    "pc_type": "sor",
                 },
             )
-            u_n.assign(u_np1)
 
-        return u_n.copy(deepcopy=True)
+            u_prev.assign(u_curr)
+            u_curr.assign(u_next)
+
+        return u_curr.copy(deepcopy=True)
 
 
 def plot_1D(
@@ -327,44 +283,39 @@ def plot_1D(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Linear advection inverse design")
+    parser = argparse.ArgumentParser(description="1D wave inverse design")
     parser.add_argument("--n_samples", type=int, default=8)
     parser.add_argument("--lr", type=float, default=1e-4)
-    parser.add_argument("--dt_physics", type=float, default=0.001)
-    parser.add_argument("--steps_physics", type=int, default=200)
-    parser.add_argument("--N", type=int, default=64)   # interpreted as number of cells now
+    parser.add_argument("--dt_physics", type=float, default=5e-4)
+    parser.add_argument("--steps_physics", type=int, default=400)
+    parser.add_argument("--N", type=int, default=64)
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--L", type=float, default=1.0)
     parser.add_argument("--gen_noise", type=float, default=0.5)
-    parser.add_argument("--velocity", type=float, default=1.0)
+    parser.add_argument("--wave_speed", type=float, default=1.0)
     parser.add_argument("--device", type=str, default="cpu")
-    parser.add_argument("--exp_dir", type=str, default="convection")
-
     args = parser.parse_args()
+
     device = args.device
 
-    os.makedirs(args.exp_dir, exist_ok=True)
-
-    solver = LinearAdvection1DOperator(
-        n_cells=args.N,
+    solver = WaveEquation1DOperator(
+        n_points=args.N,
         length=args.L,
-        velocity=args.velocity,
+        wave_speed=args.wave_speed,
         dt=args.dt_physics,
         num_steps=args.steps_physics,
+        degree=1,
     ).to(device)
 
-    # State dimension now comes from the Firedrake space
-    state_dim = solver.V.dim()
+    state_dim = solver.V.dim() # num of grid points
+    x_grid = torch.linspace(0.0, args.L, state_dim, device=device)
 
-    # DG0 coordinates = cell centers
-    x_grid_np = solver.get_dof_coordinates()
-    x_grid = torch.tensor(x_grid_np, dtype=torch.float64, device=device)
-
-    # Ground-truth initial condition in the DG space
+    # Ground-truth initial displacement
     gt_ic = (
-        torch.exp(-120.0 * (x_grid - 0.25) ** 2)
-        + 0.7 * torch.exp(-180.0 * (x_grid - 0.70) ** 2)
+        1.0 * torch.sin(torch.pi * x_grid / args.L)
+        + 0.35 * torch.sin(3.0 * torch.pi * x_grid / args.L)
     )
+    gt_ic = enforce_zero_dirichlet(gt_ic)
 
     with torch.no_grad():
         gt_final = solver(gt_ic)
@@ -375,7 +326,6 @@ if __name__ == "__main__":
     batch_size = args.n_samples
     rk_steps = 20
     loss_history = []
-    loss_ic_history = []
 
     for epoch in tqdm(range(args.epochs)):
         optimizer.zero_grad()
@@ -389,18 +339,12 @@ if __name__ == "__main__":
             device=device,
         )
 
-        pred_final = torch.stack(
-            [solver(pred_ic[k]) for k in range(batch_size)],
-            dim=0,
-        )
+        pred_final = torch.stack([solver(pred_ic[k]) for k in range(batch_size)], dim=0)
 
         loss = torch.mean(torch.abs(pred_final - gt_final.unsqueeze(0)))
         loss.backward()
         optimizer.step()
 
-        loss_ic = torch.mean(torch.abs(pred_ic - gt_ic.unsqueeze(0))).detach().cpu().numpy()
-
-        loss_ic_history.append(loss_ic.item())
         loss_history.append(loss.item())
 
         if epoch % 4 == 0:
@@ -417,11 +361,9 @@ if __name__ == "__main__":
                 pred_ic=pred_ic,
                 pred_final=pred_final,
                 loss_history=loss_history,
-                loss_ic = loss_ic_history,
                 lr=args.lr,
                 epoch=epoch,
                 n_samples=args.n_samples,
                 dt_physics=args.dt_physics,
                 steps_physics=args.steps_physics,
-                exp_dir = args.exp_dir
             )

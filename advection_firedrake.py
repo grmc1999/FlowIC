@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
+from SolverBase import BaseFiredrakeOperator
 import argparse
-
+import os
 import torch
 import torch.nn as nn
 import firedrake as fd
@@ -9,7 +10,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from firedrake.ml.pytorch.fem_operator import fem_operator
 from firedrake.adjoint import Control, ReducedFunctional
-import os
+
 torch.set_default_dtype(torch.float64)
 
 
@@ -96,19 +97,8 @@ def generate_ic(
     ic = enforce_zero_dirichlet(ic)
     return ic
 
-
+"""
 class BaseFiredrakeOperator(nn.Module, ABC):
-    """
-    Generic PyTorch wrapper for a Firedrake operator using:
-        pyadjoint.ReducedFunctional + firedrake.ml.pytorch.fem_operator
-
-    Subclasses only need to define:
-    - mesh construction
-    - function space construction
-    - problem setup
-    - annotated solve
-    - optional input preprocessing
-    """
     def __init__(self):
         super().__init__()
 
@@ -143,7 +133,8 @@ class BaseFiredrakeOperator(nn.Module, ABC):
         pass
 
     def get_dof_coordinates(self):
-        coords = self.V.tabulate_dof_coordinates()
+        #coords = self.V.tabulate_dof_coordinates()
+        coords = fd.Function(fd.VectorFunctionSpace(solver.V.mesh(),"DG",0)).interpolate(fd.SpatialCoordinate(solver.V.mesh())).dat.data # [n_points]
         gdim = self.mesh.geometric_dimension()
         return coords.reshape((-1, gdim))[:, 0]
     
@@ -170,53 +161,71 @@ class BaseFiredrakeOperator(nn.Module, ABC):
             y = y.squeeze(0)
 
         return y
+"""
 
-
-class HeatEquation1DOperator(BaseFiredrakeOperator):
+class LinearAdvection1DOperator(BaseFiredrakeOperator):
     """
-    1D heat equation:
-        u_t - alpha * u_xx = 0
-    with homogeneous Dirichlet BCs.
+    1D periodic linear advection:
+        u_t + c u_x = 0
+
+    Discretization:
+    - Periodic interval mesh
+    - DG(0) space
+    - implicit Euler in time
+    - upwind numerical flux on interior facets
     """
     def __init__(
         self,
-        n_points: int = 64,
+        n_cells: int = 64,
         length: float = 1.0,
-        alpha: float = 0.05,
+        velocity: float = 1.0,
         dt: float = 1e-3,
         num_steps: int = 200,
-        degree: int = 1,
     ):
-        self.n_points = n_points
+        self.n_cells = n_cells
         self.length = length
-        self.alpha_value = alpha
+        self.velocity_value = velocity
         self.dt_value = dt
         self.num_steps = num_steps
-        self.degree = degree
         super().__init__()
 
     def build_mesh(self):
-        return fd.IntervalMesh(self.n_points - 1, self.length)
+        return fd.PeriodicIntervalMesh(self.n_cells, self.length)
 
     def build_function_space(self, mesh):
-        return fd.FunctionSpace(mesh, "CG", self.degree)
+        # DG0 keeps one DOF per cell, which makes plotting and generator sizing simple
+        return fd.FunctionSpace(mesh, "DG", 0)
 
     def setup_problem(self):
-        self.alpha = fd.Constant(self.alpha_value)
+        self.c = fd.Constant(self.velocity_value)
         self.dt = fd.Constant(self.dt_value)
 
         self.u_trial = fd.TrialFunction(self.V)
         self.v_test = fd.TestFunction(self.V)
 
-        self.bc = fd.DirichletBC(self.V, fd.Constant(0.0), "on_boundary")
+        self.n = fd.FacetNormal(self.mesh)
 
+        # Normal flux on the '+' side of each interior facet
+        self.cn = self.c * self.n[0]("+") if callable(getattr(self.n[0], "__call__", None)) else self.c * self.n[0]
+        self.flux_n = self.c * self.n[0]("+")  # scalar in 1D
+
+        # Upwind state selected from the sign of c·n
+        self.u_up = fd.conditional(
+            fd.gt(self.flux_n, 0.0),
+            self.u_trial("+"),
+            self.u_trial("-"),
+        )
+
+        # DG implicit Euler form:
+        # (u^{n+1}, v) + dt * < (c n)_+ * u_up, jump(v) > = (u^n, v)
         self.a_form = (
-            self.u_trial * self.v_test
-            + self.dt * self.alpha * fd.dot(fd.grad(self.u_trial), fd.grad(self.v_test))
-        ) * fd.dx
+            self.u_trial * self.v_test * fd.dx
+            + self.dt * self.flux_n * self.u_up * fd.jump(self.v_test) * fd.dS
+        )
 
     def preprocess_input(self, x: torch.Tensor) -> torch.Tensor:
-        return enforce_zero_dirichlet(x)
+        # periodic problem: no Dirichlet enforcement
+        return x
 
     def solve_annotated(self, u0: fd.Function) -> fd.Function:
         u_n = fd.Function(self.V, name="u_n")
@@ -225,14 +234,15 @@ class HeatEquation1DOperator(BaseFiredrakeOperator):
         u_np1 = fd.Function(self.V, name="u_np1")
 
         for _ in range(self.num_steps):
-            L_form = (u_n * self.v_test) * fd.dx
+            L_form = u_n * self.v_test * fd.dx
+
             fd.solve(
                 self.a_form == L_form,
                 u_np1,
-                bcs=self.bc,
                 solver_parameters={
-                    "ksp_type": "cg",
-                    "pc_type": "sor",
+                    "ksp_type": "gmres",
+                    "pc_type": "bjacobi",
+                    "sub_pc_type": "ilu",
                 },
             )
             u_n.assign(u_np1)
@@ -307,49 +317,49 @@ def plot_1D(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Exps")
+    parser = argparse.ArgumentParser(description="Linear advection inverse design")
     parser.add_argument("--n_samples", type=int, default=8)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--dt_physics", type=float, default=0.001)
     parser.add_argument("--steps_physics", type=int, default=200)
-    parser.add_argument("--N", type=int, default=64)
+    parser.add_argument("--N", type=int, default=64)   # interpreted as number of cells now
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--L", type=float, default=1.0)
     parser.add_argument("--gen_noise", type=float, default=0.5)
-    parser.add_argument("--stochastic", type=str, default="constant")
+    parser.add_argument("--velocity", type=float, default=1.0)
     parser.add_argument("--device", type=str, default="cpu")
-    parser.add_argument("--exp_dir", type=str, default="heat")
+    parser.add_argument("--exp_dir", type=str, default="convection")
 
     args = parser.parse_args()
+    device = args.device
 
     os.makedirs(args.exp_dir, exist_ok=True)
 
-    device = args.device
-
-    N = args.N
-    L = args.L
-    alpha = 0.05
-
-    solver = HeatEquation1DOperator(
-        n_points=N,
-        length=L,
-        alpha=alpha,
+    solver = LinearAdvection1DOperator(
+        n_cells=args.N,
+        length=args.L,
+        velocity=args.velocity,
         dt=args.dt_physics,
         num_steps=args.steps_physics,
     ).to(device)
 
-    x_grid = torch.linspace(0.0, L, N, device=device)
+    # State dimension now comes from the Firedrake space
+    state_dim = solver.V.dim()
 
+    # DG0 coordinates = cell centers
+    x_grid_np = solver.get_dof_coordinates()
+    x_grid = torch.tensor(x_grid_np, dtype=torch.float64, device=device)
+
+    # Ground-truth initial condition in the DG space
     gt_ic = (
-        torch.exp(-100.0 * (x_grid - 0.3) ** 2)
-        + 0.5 * torch.exp(-100.0 * (x_grid - 0.7) ** 2)
+        torch.exp(-120.0 * (x_grid - 0.25) ** 2)
+        + 0.7 * torch.exp(-180.0 * (x_grid - 0.70) ** 2)
     )
-    gt_ic = enforce_zero_dirichlet(gt_ic)
 
     with torch.no_grad():
         gt_final = solver(gt_ic)
 
-    model = SimpleVectorField(n_points=N, hidden_dim=256).to(device)
+    model = SimpleVectorField(n_points=state_dim, hidden_dim=256).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     batch_size = args.n_samples
@@ -363,7 +373,7 @@ if __name__ == "__main__":
         pred_ic = generate_ic(
             model=model,
             batch_size=batch_size,
-            n_points=N,
+            n_points=state_dim,
             noise_scale=args.gen_noise,
             rk_steps=rk_steps,
             device=device,
