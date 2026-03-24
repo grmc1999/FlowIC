@@ -295,6 +295,8 @@ if __name__ == "__main__":
     parser.add_argument("--wave_speed", type=float, default=1.0)
     parser.add_argument("--device", type=str, default="cpu")
     args = parser.parse_args()
+    
+    os.makedirs(args.exp_dir, exist_ok=True)
 
     device = args.device
 
