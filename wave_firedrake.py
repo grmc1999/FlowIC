@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from SolverBase import BaseFiredrakeOperator
+from models import SimpleVectorField,generate_ic,enforce_zero_dirichlet,rk4_integrate_vector_field
 import argparse
 import os
 import numpy as np
@@ -213,7 +214,7 @@ if __name__ == "__main__":
     parser.add_argument("--wave_speed", type=float, default=1.0)
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--exp_dir", type=str, default="wave")
-    parser.add_argument("--generative", type=bool, action = "store_true")
+    parser.add_argument("--generative", action = "store_true")
     args = parser.parse_args()
     
     os.makedirs(args.exp_dir, exist_ok=True)
@@ -245,9 +246,11 @@ if __name__ == "__main__":
     if args.generative:
         print("train generative")
         model = SimpleVectorField(n_points=state_dim, hidden_dim=256).to(device)
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     else:
         print("train simplests")
-        model = torch.autograd.Variable(torch.from_numpy(np.random.uniform(0,1,(state_dim)))).to(device)
+        model = torch.rand((args.n_samples,state_dim),requires_grad = True).to(device)
+        optimizer = torch.optim.Adam([model], lr=args.lr)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
@@ -259,7 +262,8 @@ if __name__ == "__main__":
     for epoch in tqdm(range(args.epochs)):
         optimizer.zero_grad()
 
-        pred_ic = generate_ic(
+        if args.generative:
+            pred_ic = generate_ic(
             model=model,
             batch_size=batch_size,
             n_points=state_dim,
@@ -267,6 +271,8 @@ if __name__ == "__main__":
             rk_steps=rk_steps,
             device=device,
         )
+        else:
+            pred_ic = model
 
         pred_final = torch.stack([solver(pred_ic[k]) for k in range(batch_size)], dim=0)
 
