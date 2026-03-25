@@ -252,8 +252,6 @@ if __name__ == "__main__":
         model = torch.rand((args.n_samples,state_dim),requires_grad = True).to(device)
         optimizer = torch.optim.Adam([model], lr=args.lr)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-
     batch_size = args.n_samples
     rk_steps = 20
     loss_history = []

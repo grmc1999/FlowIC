@@ -179,6 +179,7 @@ if __name__ == "__main__":
         dt=args.dt_physics,
         num_steps=args.steps_physics,
     ).to(device)
+    state_dim = solver.V.dim()
 
     x_grid = torch.linspace(0.0, L, N, device=device)
 
