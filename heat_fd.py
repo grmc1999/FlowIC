@@ -161,6 +161,7 @@ if __name__ == "__main__":
     parser.add_argument("--stochastic", type=str, default="constant")
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--exp_dir", type=str, default="heat")
+    parser.add_argument("--generative", action = "store_true")
 
     args = parser.parse_args()
 
