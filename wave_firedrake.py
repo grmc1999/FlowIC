@@ -243,6 +243,7 @@ if __name__ == "__main__":
         gt_final = solver(gt_ic)
 
     if args.generative:
+        print("train generative")
         model = SimpleVectorField(n_points=state_dim, hidden_dim=256).to(device)
     else:
         print("train simplests")
