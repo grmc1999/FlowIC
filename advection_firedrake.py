@@ -330,7 +330,7 @@ if __name__ == "__main__":
     parser.add_argument("--velocity", type=float, default=1.0)
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--exp_dir", type=str, default="convection")
-    parser.add_argument("--generative", type=bool, action = "store_true")
+    parser.add_argument("--generative", action = "store_true")
 
     args = parser.parse_args()
     device = args.device
