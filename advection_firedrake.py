@@ -99,71 +99,6 @@ torch.set_default_dtype(torch.float64)
 #    ic = enforce_zero_dirichlet(ic)
 #    return ic
 #
-"""
-class BaseFiredrakeOperator(nn.Module, ABC):
-    def __init__(self):
-        super().__init__()
-
-        self.mesh = self.build_mesh()
-        self.V = self.build_function_space(self.mesh)
-
-        self.setup_problem()
-
-        self.control = self.build_control()
-        self.rf = self.build_reduced_functional()
-        self.F_torch = fem_operator(self.rf)
-
-    @abstractmethod
-    def build_mesh(self):
-        pass
-
-    def build_function_space(self, mesh):
-        return fd.FunctionSpace(mesh, "CG", 1)
-
-    @abstractmethod
-    def setup_problem(self):
-        pass
-
-    def build_control(self):
-        return fd.Function(self.V, name="control")
-
-    def preprocess_input(self, x: torch.Tensor) -> torch.Tensor:
-        return x
-
-    @abstractmethod
-    def solve_annotated(self, control: fd.Function) -> fd.Function:
-        pass
-
-    def get_dof_coordinates(self):
-        #coords = self.V.tabulate_dof_coordinates()
-        coords = fd.Function(fd.VectorFunctionSpace(solver.V.mesh(),"DG",0)).interpolate(fd.SpatialCoordinate(solver.V.mesh())).dat.data # [n_points]
-        gdim = self.mesh.geometric_dimension()
-        return coords.reshape((-1, gdim))[:, 0]
-    
-    def build_reduced_functional(self):
-        fd.adjoint.continue_annotation()
-        try:
-            output = self.solve_annotated(self.control)
-            rf = ReducedFunctional(output, Control(self.control))
-        finally:
-            fd.adjoint.stop_annotating()
-        return rf
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        squeeze_output = False
-
-        if x.ndim == 1:
-            x = x.unsqueeze(0)
-            squeeze_output = True
-
-        x = self.preprocess_input(x)
-        y = self.F_torch(x)
-
-        if squeeze_output and y.ndim == 2 and y.shape[0] == 1:
-            y = y.squeeze(0)
-
-        return y
-"""
 
 class LinearAdvection1DOperator(BaseFiredrakeOperator):
     """
@@ -365,10 +300,11 @@ if __name__ == "__main__":
     if args.generative:
         print("train generative")
         model = SimpleVectorField(n_points=state_dim, hidden_dim=256).to(device)
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     else:
         print("train simplests")
         model = torch.autograd.Variable(torch.from_numpy(np.random.uniform(0,1,(state_dim)))).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+        optimizer = torch.optim.Adam(model, lr=args.lr)
 
     batch_size = args.n_samples
     rk_steps = 20
