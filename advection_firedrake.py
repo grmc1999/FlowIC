@@ -303,7 +303,7 @@ if __name__ == "__main__":
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     else:
         print("train simplests")
-        model = torch.rand((1,state_dim),requires_grad = True).to(device)
+        model = torch.rand((args.n_samples,state_dim),requires_grad = True).to(device)
         optimizer = torch.optim.Adam([model], lr=args.lr)
 
     batch_size = args.n_samples
