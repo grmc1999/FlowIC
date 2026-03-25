@@ -245,6 +245,7 @@ if __name__ == "__main__":
     if args.generative:
         model = SimpleVectorField(n_points=state_dim, hidden_dim=256).to(device)
     else:
+        print("train simplests")
         model = torch.autograd.Variable(torch.from_numpy(np.random.uniform(0,1,(state_dim)))).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
