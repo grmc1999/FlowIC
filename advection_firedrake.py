@@ -330,6 +330,7 @@ if __name__ == "__main__":
     parser.add_argument("--velocity", type=float, default=1.0)
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--exp_dir", type=str, default="convection")
+    parser.add_argument("--generative", type=bool, action = "store_true")
 
     args = parser.parse_args()
     device = args.device
@@ -360,7 +361,12 @@ if __name__ == "__main__":
     with torch.no_grad():
         gt_final = solver(gt_ic)
 
-    model = SimpleVectorField(n_points=state_dim, hidden_dim=256).to(device)
+    if args.generative:
+        print("train generative")
+        model = SimpleVectorField(n_points=state_dim, hidden_dim=256).to(device)
+    else:
+        print("train simplests")
+        model = torch.autograd.Variable(torch.from_numpy(np.random.uniform(0,1,(state_dim)))).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     batch_size = args.n_samples
