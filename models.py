@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from torch import nn
 
@@ -27,6 +28,32 @@ class SimpleVectorField(nn.Module):
             nn.GELU(),
             nn.Linear(hidden_dim, n_points),
         )
+
+    def forward(self, x: torch.Tensor, t) -> torch.Tensor:
+        if x.ndim == 1:
+            x = x.unsqueeze(0)
+
+        if not torch.is_tensor(t):
+            t = torch.tensor(t, dtype=x.dtype, device=x.device)
+
+        t_vec = torch.full(
+            (x.shape[0], 1),
+            fill_value=t.item(),
+            dtype=x.dtype,
+            device=x.device,
+        )
+        inp = torch.cat([x, t_vec], dim=-1)
+        return self.net(inp)
+
+
+class SimpleParams(nn.Module):
+    """
+    Receives state x and scalar time t, returns dx/dt.
+    """
+    def __init__(self, n_points: int, hidden_dim: int = 256):
+        super().__init__()
+        self.n_points = n_points
+        self.IC = torch.from_numpy(np.random.uniform(0,1,(n_points))).requires_grad_(True)
 
     def forward(self, x: torch.Tensor, t) -> torch.Tensor:
         if x.ndim == 1:

@@ -303,8 +303,8 @@ if __name__ == "__main__":
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     else:
         print("train simplests")
-        model = torch.autograd.Variable(torch.from_numpy(np.random.uniform(0,1,(state_dim)))).to(device)
-        optimizer = torch.optim.Adam(model, lr=args.lr)
+        model = torch.rand(state_dim,requires_grad = True).to(device)
+        optimizer = torch.optim.Adam([model], lr=args.lr)
 
     batch_size = args.n_samples
     rk_steps = 20
@@ -314,7 +314,8 @@ if __name__ == "__main__":
     for epoch in tqdm(range(args.epochs)):
         optimizer.zero_grad()
 
-        pred_ic = generate_ic(
+        if args.generative:
+            pred_ic = generate_ic(
             model=model,
             batch_size=batch_size,
             n_points=state_dim,
@@ -322,6 +323,8 @@ if __name__ == "__main__":
             rk_steps=rk_steps,
             device=device,
         )
+        else:
+            pred_ic = model
 
         pred_final = torch.stack(
             [solver(pred_ic[k]) for k in range(batch_size)],
