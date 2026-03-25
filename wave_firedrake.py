@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from SolverBase import BaseFiredrakeOperator
 import argparse
 import os
+import numpy as np
 import torch
 import torch.nn as nn
 import firedrake as fd
@@ -10,93 +11,9 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from firedrake.ml.pytorch.fem_operator import fem_operator
 from firedrake.adjoint import Control, ReducedFunctional
+from models import enforce_zero_dirichlet,SimpleVectorField,generate_ic
 
 torch.set_default_dtype(torch.float64)
-
-
-def enforce_zero_dirichlet(u: torch.Tensor) -> torch.Tensor:
-    """
-    Enforce u[..., 0] = u[..., -1] = 0.
-    Works for shape (N,) or (B, N).
-    """
-    out = u.clone()
-    out[..., 0] = 0.0
-    out[..., -1] = 0.0
-    return out
-
-
-class SimpleVectorField(nn.Module):
-    """
-    Receives state x and scalar time t, returns dx/dt.
-    """
-    def __init__(self, n_points: int, hidden_dim: int = 256):
-        super().__init__()
-        self.n_points = n_points
-        self.net = nn.Sequential(
-            nn.Linear(n_points + 1, hidden_dim),
-            nn.GELU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.GELU(),
-            nn.Linear(hidden_dim, n_points),
-        )
-
-    def forward(self, x: torch.Tensor, t) -> torch.Tensor:
-        if x.ndim == 1:
-            x = x.unsqueeze(0)
-
-        if not torch.is_tensor(t):
-            t = torch.tensor(t, dtype=x.dtype, device=x.device)
-
-        t_vec = torch.full(
-            (x.shape[0], 1),
-            fill_value=t.item(),
-            dtype=x.dtype,
-            device=x.device,
-        )
-        inp = torch.cat([x, t_vec], dim=-1)
-        return self.net(inp)
-
-
-def rk4_integrate_vector_field(
-    model: nn.Module,
-    z0: torch.Tensor,
-    n_steps: int = 20
-) -> torch.Tensor:
-    """
-    Fixed-step RK4 integration from t=0 to t=1.
-    z0 can be shape (N,) or (B, N).
-    """
-    h = 1.0 / n_steps
-    y = z0
-    t = 0.0
-
-    for _ in range(n_steps):
-        k1 = model(y, t)
-        k2 = model(y + 0.5 * h * k1, t + 0.5 * h)
-        k3 = model(y + 0.5 * h * k2, t + 0.5 * h)
-        k4 = model(y + h * k3, t + h)
-        y = y + (h / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
-        t += h
-
-    return y
-
-
-def generate_ic(
-    model: nn.Module,
-    batch_size: int,
-    n_points: int,
-    noise_scale: float = 0.5,
-    rk_steps: int = 20,
-    device: str = "cpu",
-) -> torch.Tensor:
-    """
-    Noise -> continuous flow -> candidate initial condition.
-    """
-    z0 = noise_scale * torch.randn(batch_size, n_points, device=device)
-    ic = rk4_integrate_vector_field(model, z0, n_steps=rk_steps)
-    ic = enforce_zero_dirichlet(ic)
-    return ic
-
 
 
 
@@ -263,6 +180,7 @@ def plot_1D(
         color="r",
         alpha=0.3,
     )
+
     plt.title(f"Final state (t={dt_physics * steps_physics:.2f})")
     plt.legend()
     plt.grid(True, alpha=0.3)
@@ -295,6 +213,7 @@ if __name__ == "__main__":
     parser.add_argument("--wave_speed", type=float, default=1.0)
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--exp_dir", type=str, default="wave")
+    parser.add_argument("--generative", type=bool, action = "store_true")
     args = parser.parse_args()
     
     os.makedirs(args.exp_dir, exist_ok=True)
@@ -323,7 +242,11 @@ if __name__ == "__main__":
     with torch.no_grad():
         gt_final = solver(gt_ic)
 
-    model = SimpleVectorField(n_points=state_dim, hidden_dim=256).to(device)
+    if args.generative:
+        model = SimpleVectorField(n_points=state_dim, hidden_dim=256).to(device)
+    else:
+        model = torch.autograd.Variable(torch.from_numpy(np.random.uniform(0,1,(state_dim)))).to(device)
+
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     batch_size = args.n_samples
