@@ -211,8 +211,9 @@ if __name__ == "__main__":
     )
 
     with torch.no_grad():
-        gt_final_o = solver(gt_ic)
+        gt_final = gt_final_o = solver(gt_ic)
         if args.noisy_obs:
+            print("noisy obs")
             gt_final = gt_final_o + torch.randn(gt_final_o.shape)*0.05
 
     if args.generative:
