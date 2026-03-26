@@ -247,10 +247,10 @@ if __name__ == "__main__":
             gt_final_cpu = gt_final.detach().cpu().numpy()
             x_grid_cpu = x_grid.detach().cpu().numpy()
 
-            np.save(f"exp_dir/loss_ic_history", np.stack(loss_ic_history, axis = 0))
-            np.save(f"exp_dir/loss_history", np.stack(loss_history, axis = 0))
-            np.save(f"exp_dir/gt_ic_cpu_{epoch}.npy", gt_ic_cpu)
-            np.save(f"exp_dir/gt_final_cpu_{epoch}.npy", gt_final_cpu)
+            np.save(f"{args.exp_dir}/loss_ic_history", np.stack(loss_ic_history, axis = 0))
+            np.save(f"{args.exp_dir}/loss_history", np.stack(loss_history, axis = 0))
+            np.save(f"{args.exp_dir}/gt_ic_cpu_{epoch}.npy", gt_ic_cpu)
+            np.save(f"{args.exp_dir}/gt_final_cpu_{epoch}.npy", gt_final_cpu)
 
             plot_1D(
                 gt_ic_cpu=gt_ic_cpu,
