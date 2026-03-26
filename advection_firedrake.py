@@ -211,9 +211,9 @@ if __name__ == "__main__":
     )
 
     with torch.no_grad():
-        gt_final = solver(gt_ic)
+        gt_final_o = solver(gt_ic)
         if args.noisy_obs:
-            gt_final += torch.randn(gt_final.shape)*0.05
+            gt_final = gt_final_o + torch.randn(gt_final_o.shape)*0.05
 
     if args.generative:
         print("train generative")
@@ -249,7 +249,7 @@ if __name__ == "__main__":
             dim=0,
         )
 
-        loss = torch.mean(torch.abs(pred_final - gt_final.unsqueeze(0)))
+        loss = torch.mean(torch.abs(pred_final - gt_final_o.unsqueeze(0)))
         loss.backward()
         optimizer.step()
 
