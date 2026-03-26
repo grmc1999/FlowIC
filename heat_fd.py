@@ -193,7 +193,7 @@ if __name__ == "__main__":
 
     with torch.no_grad():
         gt_final = solver(gt_ic)
-        if args.noise:
+        if args.noisy_obs:
             gt_final += torch.randn(gt_final.shape)*0.1
 
     if args.generative:
