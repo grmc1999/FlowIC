@@ -215,6 +215,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--exp_dir", type=str, default="wave")
     parser.add_argument("--generative", action = "store_true")
+    parser.add_argument("--noisy_obs", action = "store_false")
     args = parser.parse_args()
     
     os.makedirs(args.exp_dir, exist_ok=True)
@@ -242,6 +243,8 @@ if __name__ == "__main__":
 
     with torch.no_grad():
         gt_final = solver(gt_ic)
+        if args.noise:
+            gt_final += torch.randn(gt_final.shape)*0.1
 
     if args.generative:
         print("train generative")
