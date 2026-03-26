@@ -3,6 +3,7 @@ from SolverBase import BaseFiredrakeOperator
 from models import SimpleVectorField,generate_ic,enforce_zero_dirichlet,rk4_integrate_vector_field
 import argparse
 
+import numpy as np
 import torch
 import torch.nn as nn
 import firedrake as fd
